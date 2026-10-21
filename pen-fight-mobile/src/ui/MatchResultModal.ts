@@ -19,6 +19,7 @@ export interface MatchResultData {
   p2Pen: PenSpec;
   streak: number;
   xpEarned: number;
+  isSeriesComplete?: boolean;
 }
 
 export class MatchResultModal extends EventEmitter {
@@ -158,8 +159,11 @@ export class MatchResultModal extends EventEmitter {
 
     // Header Text
     const headerTextX = -w / 2 + 22 + avatarSize + 16;
+    const isComplete = this.data.isSeriesComplete !== false;
     const seriesSubtitle = new Text({
-      text: `SERIES COMPLETE · FIRST TO ${this.data.winsNeeded}`,
+      text: isComplete
+        ? `SERIES COMPLETE · FIRST TO ${this.data.winsNeeded}`
+        : `ROUND ${this.data.scores[0] + this.data.scores[1]} COMPLETE · FIRST TO ${this.data.winsNeeded}`,
       style: new TextStyle({
         fontFamily: 'Nunito, sans-serif',
         fontSize: 10.5,
@@ -172,15 +176,19 @@ export class MatchResultModal extends EventEmitter {
     seriesSubtitle.y = topY + 6;
     this.cardContent.addChild(seriesSubtitle);
 
-    const winnerTitle = p1Won
-      ? (isAi ? 'You take the series!' : 'Player 1 takes the series!')
-      : (isAi ? 'The computer takes the series' : 'Player 2 takes the series');
+    const winnerTitle = isComplete
+      ? (p1Won
+        ? (isAi ? '🏆 You take the series!' : '🏆 Player 1 wins the series!')
+        : (isAi ? 'Computer takes the series' : 'Player 2 wins the series'))
+      : (p1Won
+        ? (isAi ? '🎉 You won this round!' : '🎉 Player 1 won round!')
+        : (isAi ? 'Computer won this round' : 'Player 2 won round'));
 
     const titleText = new Text({
       text: winnerTitle,
       style: new TextStyle({
         fontFamily: 'Fredoka, sans-serif',
-        fontSize: 22,
+        fontSize: 21,
         fill: COLORS.textDark,
         fontWeight: 'bold',
         wordWrap: true,
@@ -361,22 +369,26 @@ export class MatchResultModal extends EventEmitter {
     const btnH = 56;
     const buttonsY = statsY + 74;
 
-    // Button 1: Rematch (Primary Mint Green)
-    const rematchBtn = this.createButton({
+    // Button 1: Next Round or Play Again (Rematch)
+    const primaryLabel = isComplete ? 'Play again' : 'Next round';
+    const primaryIcon = isComplete ? '🔄' : '▷';
+    const primaryEvent = isComplete ? 'rematch' : 'next_round';
+
+    const mainActionBtn = this.createButton({
       w: btnW,
       h: btnH,
-      color: 0xCDEAC0,
-      icon: '🔄',
-      label: 'Rematch',
+      color: COLORS.butterYellow,
+      icon: primaryIcon,
+      label: primaryLabel,
       primary: true,
       onClick: () => {
         this.hide();
-        this.emit('rematch');
+        this.emit(primaryEvent);
       }
     });
-    rematchBtn.x = 0;
-    rematchBtn.y = buttonsY;
-    this.cardContent.addChild(rematchBtn);
+    mainActionBtn.x = 0;
+    mainActionBtn.y = buttonsY;
+    this.cardContent.addChild(mainActionBtn);
 
     // Bottom Row: [✎ Change pens] & [☰ Menu]
     const smallBtnW = (btnW - 12) / 2;

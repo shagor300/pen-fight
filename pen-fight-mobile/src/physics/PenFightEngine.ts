@@ -112,9 +112,11 @@ export class PenFightEngine {
 
   public onHitSound?: (intensity: number) => void;
   public onFlickSound?: (power: number) => void;
+  public onSlideSound?: (intensity: number) => void;
   public onFallSound?: () => void;
   public onAimTick?: (bucket: number) => void;
   public onRoundEnd?: (winner: 0 | 1 | 2, reason: string) => void;
+  private slideSoundTimerMs = 0;
 
   public updateDeskGeometry(canvasW: number, canvasH: number): void {
     const marginX = Math.max(16, Math.round(canvasW * 0.035));
@@ -374,9 +376,9 @@ export class PenFightEngine {
 
     const pullMag = powerRatio * MAX_PULL_PX;
     this.aiPlan = {
-      thinkTimerMs: 420,
+      thinkTimerMs: 180,
       pullTimerMs: 0,
-      pullDurationMs: 480,
+      pullDurationMs: 260,
       grabOffsetRatio,
       targetPullX: -Math.cos(launchAngle) * pullMag,
       targetPullY: -Math.sin(launchAngle) * pullMag,
@@ -469,6 +471,19 @@ export class PenFightEngine {
     if (this.phase !== 'SIMULATING' || this.pens.length < 2) return;
 
     this.simulationElapsedMs += dtMs;
+    this.slideSoundTimerMs += dtMs;
+
+    const p0Speed = this.pens[0] && !this.pens[0].falling ? Math.hypot(this.pens[0].vx, this.pens[0].vy) : 0;
+    const p1Speed = this.pens[1] && !this.pens[1].falling ? Math.hypot(this.pens[1].vx, this.pens[1].vy) : 0;
+    const maxSpeed = Math.max(p0Speed, p1Speed);
+
+    if (maxSpeed > 45 && this.slideSoundTimerMs >= 180) {
+      this.slideSoundTimerMs = 0;
+      const intensity = Math.min(1.0, Math.max(0.2, (maxSpeed - 30) / 380));
+      if (this.onSlideSound) {
+        this.onSlideSound(intensity);
+      }
+    }
 
     const subSteps = 8;
     const subDt = clampedDt / subSteps;

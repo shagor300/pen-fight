@@ -20,6 +20,7 @@ import { StatsModal } from '../ui/StatsModal';
 import { LeaderboardModal } from '../ui/LeaderboardModal';
 import { HowToPlayModal } from '../ui/HowToPlayModal';
 import { MatchResultModal } from '../ui/MatchResultModal';
+import { PauseModal } from '../ui/PauseModal';
 import { SettingsModal, GameSettings } from '../ui/SettingsModal';
 import { COLORS, MatchFormat } from '../config/gameConstants';
 
@@ -74,6 +75,7 @@ export class GameManager extends EventEmitter {
   private leaderboardModal: LeaderboardModal;
   private howToPlayModal: HowToPlayModal;
   private matchResultModal: MatchResultModal;
+  private pauseModal: PauseModal;
 
   // Selected Pens
   private selectedPenIndices: [number, number] = [0, 1];
@@ -198,7 +200,7 @@ export class GameManager extends EventEmitter {
       this.statsModal.show();
     });
     this.mainMenu.on('open_leaderboard', () => {
-      this.statsModal.show();
+      this.leaderboardModal.show();
     });
     this.mainMenu.on('open_settings', () => {
       this.settingsModal.show();
@@ -272,6 +274,12 @@ export class GameManager extends EventEmitter {
     this.matchResultModal = new MatchResultModal(app.screen.width, app.screen.height);
     this.modalLayer.addChild(this.matchResultModal.container);
 
+    this.matchResultModal.on('next_round', () => {
+      this.matchResultModal.hide();
+      this.state.roundFirstPlayer = this.state.roundFirstPlayer === 1 ? 2 : 1;
+      this.startRound();
+    });
+
     this.matchResultModal.on('rematch', () => {
       this.state.scores = [0, 0];
       this.state.roundFirstPlayer = 1;
@@ -286,6 +294,56 @@ export class GameManager extends EventEmitter {
 
     this.matchResultModal.on('menu', () => {
       this.matchResultModal.hide();
+      this.showMainMenu();
+    });
+
+    // ── Pause Modal & In-Game Controls ──────────────────────────────
+    this.pauseModal = new PauseModal(app.screen.width, app.screen.height);
+    this.modalLayer.addChild(this.pauseModal.container);
+
+    this.hud.on('pause_click', () => {
+      this.pauseModal.show({
+        matchNum: this.state.scores[0] + this.state.scores[1] + 1,
+        scores: this.state.scores,
+        winsNeeded: this.state.winsNeeded,
+        mode: this.state.mode,
+        p1Streak: this.progressionManager.getStats().currentStreak,
+        p2Streak: 0,
+      });
+    });
+
+    this.hud.on('leave_click', () => {
+      this.showMainMenu();
+    });
+
+    this.pauseModal.on('resume', () => {
+      this.pauseModal.hide();
+    });
+
+    this.pauseModal.on('restart', () => {
+      this.pauseModal.hide();
+      this.state.scores = [0, 0];
+      this.state.roundFirstPlayer = 1;
+      this.startRound();
+    });
+
+    this.pauseModal.on('change_pens', () => {
+      this.pauseModal.hide();
+      this.penModal.show(this.selectedPenIndices[0], this.state.mode, this.state.aiDifficulty);
+    });
+
+    this.pauseModal.on('settings', () => {
+      this.pauseModal.hide();
+      this.settingsModal.show();
+    });
+
+    this.pauseModal.on('help', () => {
+      this.pauseModal.hide();
+      this.howToPlayModal.show();
+    });
+
+    this.pauseModal.on('main_menu', () => {
+      this.pauseModal.hide();
       this.showMainMenu();
     });
 
@@ -311,8 +369,11 @@ export class GameManager extends EventEmitter {
 
     this.engine.onFlickSound = (power: number) => {
       soundManager.play('flick', power);
-      soundManager.play('slide', power);
       soundManager.haptic('light');
+    };
+
+    this.engine.onSlideSound = (intensity: number) => {
+      soundManager.play('slide', intensity);
     };
 
     this.engine.onFallSound = () => {
@@ -341,6 +402,8 @@ export class GameManager extends EventEmitter {
     this.leaderboardModal.hide();
     this.howToPlayModal.hide();
     this.settingsModal.hide();
+    this.pauseModal.hide();
+    this.matchResultModal.hide();
     this.mainMenu.show();
 
     // Render an idle desk background while in the menu
@@ -448,14 +511,20 @@ export class GameManager extends EventEmitter {
 
     setTimeout(() => {
       this.bannerContainer.visible = false;
-      if (matchEnded) {
-        this.showMatchResult();
-      } else {
-        // Switch who opens next round
-        this.state.roundFirstPlayer = this.state.roundFirstPlayer === 1 ? 2 : 1;
-        this.startRound();
-      }
-    }, 2200);
+      const p1Spec = PENS_ROSTER[this.selectedPenIndices[0]];
+      const p2Spec = PENS_ROSTER[this.selectedPenIndices[1]];
+      this.matchResultModal.show({
+        winner: winner === 1 ? 1 : 2,
+        scores: this.state.scores,
+        winsNeeded: this.state.winsNeeded,
+        mode: this.state.mode,
+        p1Pen: p1Spec,
+        p2Pen: p2Spec,
+        streak: this.progressionManager.getStats().currentStreak,
+        xpEarned: winner === 1 ? 50 : 15,
+        isSeriesComplete: matchEnded,
+      });
+    }, 1500);
   }
 
   private awardXP(p1Won: boolean): void {
@@ -543,6 +612,8 @@ export class GameManager extends EventEmitter {
     this.statsModal.layout(w, h);
     this.leaderboardModal.layout(w, h);
     this.howToPlayModal.layout(w, h);
+    this.matchResultModal.layout(w, h);
+    this.pauseModal.layout(w, h);
 
     this.bannerContainer.x = w / 2;
     this.bannerContainer.y = h / 2;

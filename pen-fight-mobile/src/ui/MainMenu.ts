@@ -4,9 +4,10 @@
  * Navy Blue Outlines, Butter Yellow Accents, Faux-3D Shadows, and Cartoon Typography.
  * Replicates the original reference game (shunneklabs.app) home screen 1:1.
  */
-import { Container, Graphics, Sprite, Text, TextStyle, Assets } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, TextStyle, Assets, Rectangle } from 'pixi.js';
 import { COLORS } from '../config/gameConstants';
 import { ProgressionManager } from '../core/ProgressionManager';
+import { soundManager } from '../audio/SoundAndHaptics';
 import EventEmitter from 'eventemitter3';
 
 export class MainMenu extends EventEmitter {
@@ -535,6 +536,7 @@ export class MainMenu extends EventEmitter {
       card.x = startX + idx * (cardW + gap) + cardW / 2;
       card.eventMode = 'static';
       card.cursor = 'pointer';
+      card.hitArea = new Rectangle(-cardW / 2, 0, cardW, cardH + 6);
 
       // 3D Shadow
       const shadow = new Graphics()
@@ -576,6 +578,7 @@ export class MainMenu extends EventEmitter {
       card.on('pointerdown', () => { surface.y = 3; });
       card.on('pointerup', () => {
         surface.y = 0;
+        soundManager.play('ui_click');
         c.onClick();
       });
       card.on('pointerupoutside', () => { surface.y = 0; });

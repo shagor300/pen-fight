@@ -28,6 +28,7 @@ export class HUD extends EventEmitter {
   private p2Score: Text;
 
   private pauseButton: Container;
+  private leaveButton: Container;
 
   private statusPillContainer: Container;
   private statusPillBg: Graphics;
@@ -98,9 +99,12 @@ export class HUD extends EventEmitter {
     );
     this.container.addChild(this.scorePillContainer);
 
-    // 2. Top-Right Single Square Cream Pause Button (||)
+    // 2. Top-Right Pause Button (||) & Leave Button (🏠)
     this.pauseButton = this.createPauseButton();
     this.container.addChild(this.pauseButton);
+
+    this.leaveButton = this.createLeaveButton();
+    this.container.addChild(this.leaveButton);
 
     // 3. Top-Center Status Pill
     this.statusPillContainer = new Container();
@@ -151,6 +155,9 @@ export class HUD extends EventEmitter {
     this.pauseButton.x = screenWidth - 18;
     this.pauseButton.y = topY;
 
+    this.leaveButton.x = screenWidth - 62;
+    this.leaveButton.y = topY;
+
     this.statusPillContainer.x = screenWidth / 2;
     this.statusPillContainer.y = topY + 46;
 
@@ -191,6 +198,44 @@ export class HUD extends EventEmitter {
     btn.on('pointerup', () => {
       surface.y = 0;
       this.emit('pause_click');
+    });
+    btn.on('pointerupoutside', () => { surface.y = 0; });
+
+    return btn;
+  }
+
+  private createLeaveButton(): Container {
+    const btn = new Container();
+    btn.eventMode = 'static';
+    btn.cursor = 'pointer';
+
+    const s = 38;
+    const r = 11;
+
+    const shadow = new Graphics()
+      .roundRect(-s, 3, s, s, r)
+      .fill({ color: COLORS.navyShadow });
+    btn.addChild(shadow);
+
+    const surface = new Graphics()
+      .roundRect(-s, 0, s, s, r)
+      .fill({ color: COLORS.cardCream })
+      .stroke({ color: COLORS.navyBorder, width: 2.4 });
+    btn.addChild(surface);
+
+    const txt = new Text({
+      text: '🏠',
+      style: new TextStyle({ fontSize: 18 })
+    });
+    txt.anchor.set(0.5, 0.5);
+    txt.x = -s / 2;
+    txt.y = s / 2;
+    surface.addChild(txt);
+
+    btn.on('pointerdown', () => { surface.y = 2; });
+    btn.on('pointerup', () => {
+      surface.y = 0;
+      this.emit('leave_click');
     });
     btn.on('pointerupoutside', () => { surface.y = 0; });
 
