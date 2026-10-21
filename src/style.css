@@ -1,0 +1,225 @@
+@import '@fontsource/fredoka/600.css';
+@import '@fontsource/fredoka/700.css';
+@import '@fontsource/nunito/600.css';
+@import '@fontsource/nunito/700.css';
+@import '@fontsource/nunito/800.css';
+
+:root, [data-theme="light"] {
+  /* Core Surfaces (Warm School Notebook & Cream Palette) */
+  --bg-primary: #f5f2e9;
+  --bg-card: #fbf5e5;
+  --bg-elevated: #ffffff;
+  --bg-scoreboard: #f5f0e1;
+  --bg-badge: #e8e3d5;
+  --bg-slider-track: #d6cfb8;
+
+  /* Typography & Ink Borders */
+  --border-color: #2b302a;
+  --text-primary: #2b302a;
+  --text-secondary: #6b7280;
+
+  /* Official Brand & Player Accent Colors */
+  --accent-yellow: #f3cd57;
+  --accent-yellow-hover: #fcd34d;
+  --accent-p1-blue: #9ec5e8;
+  --accent-p2-orange: #f8a170;
+  --accent-green: #a7cc8d;
+  --accent-danger: #e63946;
+
+  /* Tactile Neo-Brutalist Borders & Radii */
+  --border-sm: 2px solid var(--border-color);
+  --border-md: 3px solid var(--border-color);
+  --border-lg: 4px solid var(--border-color);
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-pill: 9999px;
+
+  /* Signature Zero-Blur Tactile Bottom Shadows */
+  --shadow-card: 0px 4px 0px var(--border-color);
+  --shadow-btn: 0px 4px 0px var(--border-color);
+  --shadow-btn-active: 0px 1px 0px var(--border-color);
+  --shadow-modal: 0px 8px 24px rgba(0, 0, 0, 0.28);
+
+  /* Fonts */
+  --font-heading: 'Fredoka', cursive, sans-serif;
+  --font-body: 'Nunito', sans-serif;
+}
+
+/* Dark Theme ("Night Classroom" Mode) */
+[data-theme="dark"] {
+  --bg-primary: #1c212d;
+  --bg-card: #222938;
+  --bg-elevated: #2a3244;
+  --bg-scoreboard: #181d27;
+  --bg-badge: #2d3648;
+  --bg-slider-track: #374151;
+  --border-color: #11161d;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+}
+
+* {
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-weight: 700;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+  outline: none;
+}
+
+h1, h2, h3, .font-heading {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/* Primary Play Button (Vibrant Yellow Pill with Tactile Push) */
+.btn-primary {
+  font-family: var(--font-heading);
+  font-size: 1.125rem;
+  font-weight: 700;
+  background-color: var(--accent-yellow);
+  color: #2b302a;
+  border: var(--border-md);
+  border-radius: var(--radius-pill);
+  padding: 0.65rem 1.6rem;
+  box-shadow: var(--shadow-btn);
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.15s ease;
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-yellow-hover);
+}
+
+.btn-primary:active {
+  transform: translateY(3px);
+  box-shadow: var(--shadow-btn-active);
+}
+
+/* Secondary Action Button (Cream / Elevated Surface) */
+.btn-secondary {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 800;
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border: var(--border-sm);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 1rem;
+  box-shadow: 0px 3px 0px var(--border-color);
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.btn-secondary:active {
+  transform: translateY(2px);
+  box-shadow: 0px 1px 0px var(--border-color);
+}
+
+/* Cards & Scoreboard Containers */
+.sl-card {
+  background-color: var(--bg-card);
+  border: var(--border-md);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 1.25rem;
+}
+
+.sl-scoreboard {
+  background-color: var(--bg-scoreboard);
+  border: var(--border-sm);
+  border-radius: var(--radius-md);
+  box-shadow: 0px 3px 0px var(--border-color);
+}
+
+.sl-player1-tag {
+  background-color: var(--accent-p1-blue);
+  color: #1e293b;
+  border: var(--border-sm);
+  border-radius: var(--radius-sm);
+}
+
+.sl-player2-tag {
+  background-color: var(--accent-p2-orange);
+  color: #1e293b;
+  border: var(--border-sm);
+  border-radius: var(--radius-sm);
+}
+
+/* Pill Badges ("Free", "No ads", "#PenFightSL") */
+.sl-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background-color: var(--bg-badge);
+  color: var(--text-primary);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  padding: 0.2rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+/* Pop-up Modal Dialog */
+.sl-modal-backdrop {
+  background: rgba(17, 22, 29, 0.62);
+  backdrop-filter: blur(4px);
+}
+
+.sl-modal-box {
+  background-color: var(--bg-card);
+  border: var(--border-md);
+  border-radius: 24px;
+  box-shadow: var(--shadow-modal), 0px 6px 0px var(--border-color);
+}
+
+/* Custom Pastel Green Volume Slider */
+input[type="range"].sl-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 12px;
+  background: var(--bg-slider-track);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  outline: none;
+}
+
+input[type="range"].sl-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  border: 2.5px solid var(--border-color);
+  box-shadow: 0px 2px 0px var(--border-color);
+  cursor: pointer;
+}

@@ -1,0 +1,36 @@
+{
+  "name": "pen-fight-mobile",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/earcut": "^3.0.0",
+    "@types/howler": "^2.2.13",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.4"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/screen-orientation": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4",
+    "@fontsource/fredoka": "^5.3.0",
+    "@fontsource/nunito": "^5.3.0",
+    "@pixi/colord": "^2.9.6",
+    "earcut": "^3.2.4",
+    "eventemitter3": "^5.0.4",
+    "howler": "^2.2.4",
+    "ismobilejs": "^1.1.1",
+    "pixi.js": "^8.22.0",
+    "planck": "^1.4.2",
+    "tiny-lru": "^11.4.7"
+  }
+}

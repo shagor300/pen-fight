@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Production builds
+dist/
+**/dist/
+dist-ssr/
+**/dist-ssr/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Android build outputs & local configs
+**/android/.gradle/
+**/android/build/
+**/android/app/build/
+**/android/capacitor-cordova-android-plugins/build/
+**/android/local.properties
+**/android/app/src/main/assets/public/
+*.apk
+*.aar
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.sw?
