@@ -1,24 +1,24 @@
-import { PenSpec, PENS_ROSTER } from '../config/pensConfig';
+import { PenSpec } from '../config/pensConfig';
 
 export type GamePhase =
-  | 'AIMING'          // Human player can touch & pull back
-  | 'AI_THINKING'     // "Computer · Thinking" pause (380ms)
-  | 'AI_PULLING'      // "Computer's turn" animated thermometer pull-back (460ms)
-  | 'SIMULATING'      // Pens in motion on the desk
-  | 'ROUND_OVER';     // Winner modal displayed
+  | 'AIMING'
+  | 'AI_THINKING'
+  | 'AI_PULLING'
+  | 'SIMULATING'
+  | 'ROUND_OVER';
 
 export interface PenBody {
-  playerIndex: 1 | 2; // 1 = You / Player 1 (Orange label), 2 = Computer / Player 2 (Blue label)
-  label: string;      // "You" | "Computer" | "Player 1" | "Player 2"
-  labelColor: string; // "#e06d3b" (orange) or "#3b82f6" (blue)
+  playerIndex: 1 | 2;
+  label: string;
+  labelColor: string;
   spec: PenSpec;
   level: number;
   x: number;
   y: number;
-  vx: number;         // px per second
-  vy: number;         // px per second
-  angle: number;      // radians
-  omega: number;      // radians per second
+  vx: number;
+  vy: number;
+  angle: number;
+  omega: number;
   lengthPx: number;
   widthPx: number;
   mass: number;
@@ -35,10 +35,11 @@ export interface PenBody {
 export interface AimDragState {
   active: boolean;
   penIndex: 0 | 1;
-  grabOffsetRatio: number; // -0.92 (back cap) to +0.92 (front tip) along pen axis
-  pullX: number;           // Pull vector X (from contact point toward finger)
-  pullY: number;           // Pull vector Y (from contact point toward finger)
-  powerRatio: number;      // 0.0 to 1.0
+  grabOffsetRatio: number;
+  pullX: number;
+  pullY: number;
+  powerRatio: number;
+  lastTickBucket?: number;
 }
 
 export interface ImpactRingEffect {
@@ -49,10 +50,22 @@ export interface ImpactRingEffect {
   maxRadius: number;
 }
 
+export interface ImpactSpark {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  color: string;
+  alpha: number;
+  radius: number;
+}
+
 export const SHRINK_TURNS = [15, 19, 23, 27];
-export const MAX_PULL_PX = 135;
+export const MAX_PULL_PX = 138;
 export const CANCEL_PULL_PX = 14;
-export const MAX_SIMULATION_MS = 2400; // Safety watchdog so pens NEVER crawl forever
+export const MAX_SIMULATION_MS = 2400;
+export const INACTIVITY_START_SEC = 10;
+export const COUNTDOWN_DURATION_SEC = 20;
 
 export class PenFightEngine {
   public pens: [PenBody, PenBody] | [] = [];
@@ -62,7 +75,6 @@ export class PenFightEngine {
   public turnCount = 1;
   public shrinkSteps = 0;
 
-  // Full-screen desk outer rectangle & active inner boundary (after shrinking)
   public outerDesk = { x: 24, y: 56, w: 500, h: 800 };
   public activeBounds = { x: 24, y: 56, w: 500, h: 800 };
 
@@ -72,10 +84,10 @@ export class PenFightEngine {
     grabOffsetRatio: 0,
     pullX: 0,
     pullY: 0,
-    powerRatio: 0
+    powerRatio: 0,
+    lastTickBucket: 0
   };
 
-  // AI animated pull-back state
   public aiPlan = {
     thinkTimerMs: 0,
     pullTimerMs: 0,
@@ -87,13 +99,17 @@ export class PenFightEngine {
   };
 
   public impactRings: ImpactRingEffect[] = [];
+  public sparks: ImpactSpark[] = [];
+  public screenShake = 0;
   public simulationElapsedMs = 0;
   public turnToastTimerMs = 0;
   public turnToastText = 'Your turn';
+  public turnIdleSec = 0;
 
   public onHitSound?: (intensity: number) => void;
   public onFlickSound?: (power: number) => void;
   public onFallSound?: () => void;
+  public onAimTick?: (bucket: number) => void;
   public onRoundEnd?: (winner: 0 | 1 | 2, reason: string) => void;
 
   public updateDeskGeometry(canvasW: number, canvasH: number): void {
@@ -101,12 +117,26 @@ export class PenFightEngine {
     const marginTop = Math.max(52, Math.round(canvasH * 0.065));
     const marginBottom = Math.max(18, Math.round(canvasH * 0.025));
 
+    const oldW = this.outerDesk.w || 1;
+    const oldH = this.outerDesk.h || 1;
+    const oldX = this.outerDesk.x;
+    const oldY = this.outerDesk.y;
+
     this.outerDesk = {
       x: marginX,
       y: marginTop,
-      w: canvasW - marginX * 2,
-      h: canvasH - marginTop - marginBottom
+      w: Math.max(260, canvasW - marginX * 2),
+      h: Math.max(320, canvasH - marginTop - marginBottom)
     };
+
+    if (this.pens.length === 2) {
+      for (const pen of this.pens) {
+        const relX = (pen.x - oldX) / oldW;
+        const relY = (pen.y - oldY) / oldH;
+        pen.x = this.outerDesk.x + relX * this.outerDesk.w;
+        pen.y = this.outerDesk.y + relY * this.outerDesk.h;
+      }
+    }
 
     this.recalculateActiveBounds();
   }
@@ -127,7 +157,10 @@ export class PenFightEngine {
     p1Spec: PenSpec,
     p2Spec: PenSpec,
     mode: 'ai' | '2p',
-    startingPlayer: 1 | 2
+    startingPlayer: 1 | 2,
+    p1Level = 1,
+    p2Level = 1,
+    equalLevels = false
   ): void {
     this.turnCount = 1;
     this.shrinkSteps = 0;
@@ -135,32 +168,38 @@ export class PenFightEngine {
     this.activePlayer = startingPlayer;
     this.recalculateActiveBounds();
     this.impactRings = [];
+    this.sparks = [];
+    this.screenShake = 0;
     this.aim.active = false;
+    this.turnIdleSec = 0;
 
     const cx = this.outerDesk.x + this.outerDesk.w * 0.5;
     const cy = this.outerDesk.y + this.outerDesk.h * 0.5;
-    const spreadX = Math.min(115, this.outerDesk.w * 0.19);
+    const spreadX = Math.min(120, this.outerDesk.w * 0.21);
 
-    // Exact spawn positions from original mobile video (side-by-side in the center of the desk!)
-    // Player 2 / Computer on the LEFT, Player 1 / You on the RIGHT
+    const effP1Lvl = equalLevels ? 1 : p1Level;
+    const effP2Lvl = equalLevels ? 1 : (mode === 'ai' ? Math.min(p1Level, p2Level) : p2Level);
+
     const p1 = this.createPenBody(
       1,
       mode === 'ai' ? 'You' : 'Player 1',
-      '#e06d3b', // Official warm orange label
+      '#e06d3b',
       p1Spec,
+      effP1Lvl,
       cx + spreadX,
       cy + 4,
-      Math.PI + 0.18 // Facing left & slightly up
+      Math.PI + 0.18
     );
 
     const p2 = this.createPenBody(
       2,
       mode === 'ai' ? 'Computer' : 'Player 2',
-      '#3b82f6', // Official blue label
+      '#3b82f6',
       p2Spec,
+      effP2Lvl,
       cx - spreadX,
       cy - 4,
-      0.18 // Facing right & slightly down
+      0.18
     );
 
     this.pens = [p1, p2];
@@ -169,7 +208,9 @@ export class PenFightEngine {
       this.beginAiTurn('normal');
     } else {
       this.phase = 'AIMING';
-      this.triggerTurnToast(this.activePlayer === 1 ? (mode === 'ai' ? 'Your turn' : "Player 1's turn") : "Player 2's turn");
+      this.triggerTurnToast(
+        this.activePlayer === 1 ? (mode === 'ai' ? 'Your turn' : "Player 1's turn") : "Player 2's turn"
+      );
     }
   }
 
@@ -178,17 +219,18 @@ export class PenFightEngine {
     label: string,
     labelColor: string,
     spec: PenSpec,
+    level: number,
     x: number,
     y: number,
     angle: number
   ): PenBody {
-    const mass = 0.85 + spec.stats.weight * 0.24;
-    const speedMult = 0.88 + spec.stats.speed * 0.08;
-    const spinMult = 0.85 + spec.stats.spin * 0.14;
-    const gripMult = 0.92 + spec.stats.grip * 0.07;
+    const lvlBonus = 1 + (Math.max(1, level) - 1) * 0.02;
+    const mass = (0.85 + spec.stats.weight * 0.24) * lvlBonus;
+    const speedMult = (0.88 + spec.stats.speed * 0.08) * lvlBonus;
+    const spinMult = (0.85 + spec.stats.spin * 0.14) * lvlBonus;
+    const gripMult = (0.92 + spec.stats.grip * 0.07) * lvlBonus;
     const L = spec.lengthPx;
     const W = spec.widthPx;
-    // Realistic rod moment of inertia scaled for crisp angular whip
     const inertia = (mass * (L * L + W * W)) / 14.5;
 
     return {
@@ -196,7 +238,7 @@ export class PenFightEngine {
       label,
       labelColor,
       spec,
-      level: 1,
+      level,
       x,
       y,
       vx: 0,
@@ -219,12 +261,9 @@ export class PenFightEngine {
 
   public triggerTurnToast(text: string): void {
     this.turnToastText = text;
-    this.turnToastTimerMs = 850;
+    this.turnToastTimerMs = 950;
   }
 
-  /**
-   * Computes the world coordinates of the white contact dot on the pen's centerline
-   */
   public getContactWorldPoint(pen: PenBody, grabOffsetRatio: number): { x: number; y: number } {
     const halfUsableL = pen.lengthPx * 0.44;
     return {
@@ -233,28 +272,23 @@ export class PenFightEngine {
     };
   }
 
-  /**
-   * Fires the flick shot using realistic impulse + off-center torque
-   * Velocities are in pixels/second so motion is 100% frame-rate independent and finishes in 0.4-0.8s!
-   */
   public fireShot(pen: PenBody, pullX: number, pullY: number, powerRatio: number, grabOffsetRatio: number): void {
     const pullLen = Math.hypot(pullX, pullY) || 1;
-    // Launch direction is opposite to the pull-back vector
     const dirX = -pullX / pullLen;
     const dirY = -pullY / pullLen;
 
     const clampedPower = Math.min(1.0, Math.max(0.08, powerRatio));
-    // Crisp launch velocity (320 px/s on gentle tap up to 1480 px/s on 100% full red thermometer!)
-    const baseImpulse = (310 + clampedPower * 1180) * pen.speedMult;
+    const baseImpulse = (290 + clampedPower * 960) * pen.speedMult;
 
     const jx = dirX * baseImpulse;
     const jy = dirY * baseImpulse;
 
     const contact = this.getContactWorldPoint(pen, grabOffsetRatio);
-    this.applyWorldImpulse(pen, jx, jy, contact.x, contact.y, pen.spinMult);
+    this.applyWorldImpulse(pen, jx, jy, contact.x, contact.y, pen.spinMult * 1.15);
 
     if (this.onFlickSound) this.onFlickSound(clampedPower);
     this.aim.active = false;
+    this.turnIdleSec = 0;
     this.phase = 'SIMULATING';
     this.simulationElapsedMs = 0;
   }
@@ -270,30 +304,22 @@ export class PenFightEngine {
     pen.vx += jx / pen.mass;
     pen.vy += jy / pen.mass;
 
-    // Lever arm r = contactPoint - centerOfMass
     const rx = contactX - pen.x;
     const ry = contactY - pen.y;
     const crossTorque = (rx * jy - ry * jx) * spinBoost;
     pen.omega += crossTorque / pen.inertia;
   }
 
-  /**
-   * Starts the AI's 2-stage turn:
-   * 1. "Computer · Thinking" (380ms)
-   * 2. "Computer's turn" with animated Thermometer Pull-Back (460ms)
-   */
   public beginAiTurn(difficulty: 'easy' | 'normal' | 'hard'): void {
     if (this.pens.length < 2 || !this.pens[0] || !this.pens[1]) return;
     const aiPen = this.pens[1];
     const targetPen = this.pens[0];
 
-    // Pick whether AI aims for target's center or nearer tip/cap
     const targetEnds = this.getSegmentEndpoints(targetPen);
     let aimX = targetPen.x;
     let aimY = targetPen.y;
 
-    if (difficulty === 'hard' && Math.random() < 0.7) {
-      // Aim at whichever end of the player's pen gives better leverage
+    if (difficulty === 'hard' && Math.random() < 0.72) {
       if (Math.random() < 0.5) {
         aimX = (targetPen.x + targetEnds.ax) * 0.5;
         aimY = (targetPen.y + targetEnds.ay) * 0.5;
@@ -303,9 +329,8 @@ export class PenFightEngine {
       }
     }
 
-    // Decide AI grab offset on its own pen (off-center for spin shots, near-center for straight pushes)
     let grabOffsetRatio = (Math.random() - 0.5) * 0.35;
-    if (difficulty !== 'easy' && Math.random() < 0.52) {
+    if (difficulty !== 'easy' && Math.random() < 0.55) {
       grabOffsetRatio = (Math.random() < 0.5 ? 1 : -1) * (0.45 + Math.random() * 0.38);
     }
 
@@ -316,17 +341,15 @@ export class PenFightEngine {
 
     let launchAngle = Math.atan2(toTargetY, toTargetX);
     const errorRad =
-      difficulty === 'easy' ? 0.28 : difficulty === 'normal' ? 0.11 : 0.035;
+      difficulty === 'easy' ? 0.25 : difficulty === 'normal' ? 0.09 : 0.028;
     launchAngle += (Math.random() - 0.5) * errorRad;
 
-    // Calculate controlled power so AI doesn't suicidally fly off the desk
-    const distRatio = Math.min(1.0, Math.max(0.24, distPx / 420));
+    const distRatio = Math.min(1.0, Math.max(0.28, distPx / 380));
     const powerRatio =
       difficulty === 'easy'
-        ? 0.32 + Math.random() * 0.35
-        : Math.min(0.82, Math.max(0.28, distRatio * (0.72 + Math.random() * 0.16)));
+        ? 0.35 + Math.random() * 0.30
+        : Math.min(0.84, Math.max(0.36, distRatio * (0.68 + Math.random() * 0.16)));
 
-    // Pull vector is opposite to launch direction
     const pullMag = powerRatio * MAX_PULL_PX;
     this.aiPlan = {
       thinkTimerMs: 380,
@@ -338,12 +361,21 @@ export class PenFightEngine {
       targetPowerRatio: powerRatio
     };
 
+    this.turnIdleSec = 0;
     this.phase = 'AI_THINKING';
   }
 
-  /**
-   * Main 60fps/120fps physics & state step (`dtSec` in seconds, e.g., 0.0166)
-   */
+  public getTurnCountdownStatus(): { remainingSec: number; ratio: number } | null {
+    if (this.phase !== 'AIMING' || this.aim.active) return null;
+    if (this.turnIdleSec < INACTIVITY_START_SEC) return null;
+    const elapsedCountdown = this.turnIdleSec - INACTIVITY_START_SEC;
+    const remainingSec = Math.max(0, COUNTDOWN_DURATION_SEC - elapsedCountdown);
+    return {
+      remainingSec,
+      ratio: remainingSec / COUNTDOWN_DURATION_SEC
+    };
+  }
+
   public step(dtSec: number, mode: 'ai' | '2p', aiDifficulty: 'easy' | 'normal' | 'hard'): void {
     const clampedDt = Math.min(0.033, Math.max(0.001, dtSec));
     const dtMs = clampedDt * 1000;
@@ -352,7 +384,10 @@ export class PenFightEngine {
       this.turnToastTimerMs = Math.max(0, this.turnToastTimerMs - dtMs);
     }
 
-    // Update starburst collision rings
+    if (this.screenShake > 0) {
+      this.screenShake = Math.max(0, this.screenShake * 0.82 - 0.15);
+    }
+
     for (let i = this.impactRings.length - 1; i >= 0; i--) {
       this.impactRings[i].ageMs += dtMs;
       if (this.impactRings[i].ageMs >= this.impactRings[i].durationMs) {
@@ -360,7 +395,28 @@ export class PenFightEngine {
       }
     }
 
-    // Handle AI Thinking -> Animated Thermometer Pull-Back -> Shot Release
+    for (let i = this.sparks.length - 1; i >= 0; i--) {
+      const sp = this.sparks[i];
+      sp.x += sp.vx * clampedDt;
+      sp.y += sp.vy * clampedDt;
+      sp.alpha -= clampedDt * 2.8;
+      if (sp.alpha <= 0) this.sparks.splice(i, 1);
+    }
+
+    if (this.phase === 'AIMING') {
+      if (!this.aim.active) {
+        this.turnIdleSec += clampedDt;
+        if (this.turnIdleSec >= INACTIVITY_START_SEC + COUNTDOWN_DURATION_SEC) {
+          this.turnIdleSec = 0;
+          this.advanceToNextTurn(mode, aiDifficulty);
+          return;
+        }
+      } else {
+        this.turnIdleSec = 0;
+      }
+      return;
+    }
+
     if (this.phase === 'AI_THINKING') {
       this.aiPlan.thinkTimerMs -= dtMs;
       if (this.aiPlan.thinkTimerMs <= 0) {
@@ -379,7 +435,6 @@ export class PenFightEngine {
     if (this.phase === 'AI_PULLING') {
       this.aiPlan.pullTimerMs += dtMs;
       const t = Math.min(1.0, this.aiPlan.pullTimerMs / this.aiPlan.pullDurationMs);
-      // Smooth easeOutCubic pull-back animation
       const ease = 1 - Math.pow(1 - t, 3);
       this.aim.pullX = this.aiPlan.targetPullX * ease;
       this.aim.pullY = this.aiPlan.targetPullY * ease;
@@ -401,7 +456,6 @@ export class PenFightEngine {
 
     this.simulationElapsedMs += dtMs;
 
-    // 8 Physics Sub-steps per frame for ultra-accurate capsule collision & zero tunneling
     const subSteps = 8;
     const subDt = clampedDt / subSteps;
 
@@ -412,7 +466,6 @@ export class PenFightEngine {
         pen.y += pen.vy * subDt;
         pen.angle += pen.omega * subDt;
 
-        // Check Center-of-Mass against active desk boundary
         if (!pen.falling) {
           const b = this.activeBounds;
           if (pen.x < b.x || pen.x > b.x + b.w || pen.y < b.y || pen.y > b.y + b.h) {
@@ -427,7 +480,6 @@ export class PenFightEngine {
       }
     }
 
-    // Apply Anisotropic Friction + Dry Coulomb Deceleration (Stops pens crisply in 0.4–0.8s!)
     let anyMoving = false;
 
     for (const pen of this.pens) {
@@ -447,7 +499,6 @@ export class PenFightEngine {
         continue;
       }
 
-      // Decompose velocity into axial (along barrel) and lateral (sideways rolling)
       const ux = Math.cos(pen.angle);
       const uy = Math.sin(pen.angle);
       const lx = -uy;
@@ -456,15 +507,13 @@ export class PenFightEngine {
       let vAxial = pen.vx * ux + pen.vy * uy;
       let vLateral = pen.vx * lx + pen.vy * ly;
 
-      // 1. Exponential surface damping (stronger along barrel, smoother sideways roll)
-      const axialDecay = Math.pow(0.018 / pen.gripMult, clampedDt);
-      const lateralDecay = Math.pow(0.055 / pen.gripMult, clampedDt);
+      const axialDecay = Math.pow(0.032 / pen.gripMult, clampedDt);
+      const lateralDecay = Math.pow(0.095 / pen.gripMult, clampedDt);
       vAxial *= axialDecay;
       vLateral *= lateralDecay;
 
-      // 2. Dry Coulomb wood-surface friction (subtracts constant speed per second so it NEVER crawls!)
-      const axialCoulomb = 340 * pen.gripMult * clampedDt;
-      const lateralCoulomb = 185 * pen.gripMult * clampedDt;
+      const axialCoulomb = 210 * pen.gripMult * clampedDt;
+      const lateralCoulomb = 115 * pen.gripMult * clampedDt;
 
       if (Math.abs(vAxial) <= axialCoulomb) vAxial = 0;
       else vAxial -= Math.sign(vAxial) * axialCoulomb;
@@ -475,15 +524,25 @@ export class PenFightEngine {
       pen.vx = ux * vAxial + lx * vLateral;
       pen.vy = uy * vAxial + ly * vLateral;
 
-      // 3. Angular spin damping + dry rotational friction
-      pen.omega *= Math.pow(0.035 / pen.gripMult, clampedDt);
-      const angularCoulomb = 4.2 * pen.gripMult * clampedDt;
+      pen.omega *= Math.pow(0.042 / pen.gripMult, clampedDt);
+      const angularCoulomb = 3.8 * pen.gripMult * clampedDt;
       if (Math.abs(pen.omega) <= angularCoulomb) pen.omega = 0;
       else pen.omega -= Math.sign(pen.omega) * angularCoulomb;
 
       const linearSpeed = Math.hypot(pen.vx, pen.vy);
 
-      // Force clean stop when below human-perceptible threshold or if watchdog expires
+      if (pen.level >= 2 && linearSpeed > 220 && Math.random() < 0.35) {
+        this.sparks.push({
+          x: pen.x + (Math.random() - 0.5) * 6,
+          y: pen.y + (Math.random() - 0.5) * 6,
+          vx: (Math.random() - 0.5) * 20,
+          vy: (Math.random() - 0.5) * 20,
+          color: pen.spec.colors.ink,
+          alpha: 0.55,
+          radius: 2.2
+        });
+      }
+
       if (
         (linearSpeed < 14 && Math.abs(pen.omega) < 0.35) ||
         this.simulationElapsedMs >= MAX_SIMULATION_MS
@@ -531,7 +590,6 @@ export class PenFightEngine {
 
     if (dist >= minDist) return;
 
-    // Collision normal from A to B
     let nx = 1;
     let ny = 0;
     if (dist > 0.0001) {
@@ -545,8 +603,7 @@ export class PenFightEngine {
       ny = cdy / cLen;
     }
 
-    // Immediate positional separation (prevents pens from ever sticking or overlapping!)
-    const overlap = minDist - dist + 0.5;
+    const overlap = minDist - dist + 0.6;
     const invMassA = 1 / pA.mass;
     const invMassB = 1 / pB.mass;
     const totalInvMass = invMassA + invMassB;
@@ -564,7 +621,6 @@ export class PenFightEngine {
     const rBx = contactX - pB.x;
     const rBy = contactY - pB.y;
 
-    // Point velocity v_p = v + omega × r
     const vAx = pA.vx - pA.omega * rAy;
     const vAy = pA.vy + pA.omega * rAx;
     const vBx = pB.vx - pB.omega * rBy;
@@ -578,7 +634,7 @@ export class PenFightEngine {
 
     const rACrossN = rAx * ny - rAy * nx;
     const rBCrossN = rBx * ny - rBy * nx;
-    const restitution = 0.82; // Lively plastic/steel rebound
+    const restitution = 0.78;
 
     const denom =
       invMassA +
@@ -593,34 +649,47 @@ export class PenFightEngine {
     this.applyWorldImpulse(pA, -jx, -jy, contactX, contactY, 1.0);
     this.applyWorldImpulse(pB, jx, jy, contactX, contactY, 1.0);
 
-    // Tangential spin-whip transfer
     const tx = -ny;
     const ty = nx;
     const relTan = relVx * tx + relVy * ty;
-    const jt = (-relTan * 0.28) / denom;
-    this.applyWorldImpulse(pA, -jt * tx, -jt * ty, contactX, contactY, 0.9);
-    this.applyWorldImpulse(pB, jt * tx, jt * ty, contactX, contactY, 0.9);
+    const jt = (-relTan * 0.34) / denom;
+    this.applyWorldImpulse(pA, -jt * tx, -jt * ty, contactX, contactY, 0.95);
+    this.applyWorldImpulse(pB, jt * tx, jt * ty, contactX, contactY, 0.95);
 
     const impactSpeed = Math.abs(velAlongNormal);
-    if (impactSpeed > 45) {
-      const intensity = Math.min(1.0, impactSpeed / 650);
+    if (impactSpeed > 38) {
+      const intensity = Math.min(1.0, impactSpeed / 580);
+      this.screenShake = Math.max(this.screenShake, intensity * 7.5);
       if (this.onHitSound) this.onHitSound(intensity);
 
-      // Spawn the signature 8-spike Starburst Impact Ring seen in the reference videos!
       if (
         this.impactRings.length === 0 ||
         Math.hypot(
           this.impactRings[this.impactRings.length - 1].x - contactX,
           this.impactRings[this.impactRings.length - 1].y - contactY
-        ) > 18
+        ) > 16
       ) {
         this.impactRings.push({
           x: contactX,
           y: contactY,
           ageMs: 0,
-          durationMs: 210,
-          maxRadius: 18 + intensity * 16
+          durationMs: 220,
+          maxRadius: 18 + intensity * 18
         });
+
+        for (let i = 0; i < 10; i++) {
+          const ang = Math.random() * Math.PI * 2;
+          const spd = 60 + Math.random() * 190 * intensity;
+          this.sparks.push({
+            x: contactX,
+            y: contactY,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd,
+            color: i % 2 === 0 ? '#facc15' : '#ffffff',
+            alpha: 0.95,
+            radius: 2 + Math.random() * 2
+          });
+        }
       }
     }
   }
@@ -674,7 +743,6 @@ export class PenFightEngine {
       let reason = '';
 
       if (p1Out && p2Out) {
-        // Double KO: the active player who took the risky shot loses!
         winner = this.activePlayer === 1 ? 2 : 1;
         reason = 'Both pens fell off! The shooter forfeits the round.';
       } else if (p1Out) {
@@ -689,12 +757,10 @@ export class PenFightEngine {
       return;
     }
 
-    // Apply desk shrinking after turns 15, 19, 23, 27
     if (SHRINK_TURNS.includes(this.turnCount)) {
       this.shrinkSteps++;
       this.recalculateActiveBounds();
 
-      // Check if shrinking immediately dropped a pen outside the new inner dashed line
       const b = this.activeBounds;
       for (const pen of this.pens) {
         if (pen.x < b.x || pen.x > b.x + b.w || pen.y < b.y || pen.y > b.y + b.h) {
@@ -715,8 +781,13 @@ export class PenFightEngine {
       return;
     }
 
+    this.advanceToNextTurn(mode, aiDifficulty);
+  }
+
+  private advanceToNextTurn(mode: 'ai' | '2p', aiDifficulty: 'easy' | 'normal' | 'hard'): void {
     this.turnCount++;
     this.activePlayer = this.activePlayer === 1 ? 2 : 1;
+    this.turnIdleSec = 0;
 
     if (mode === 'ai' && this.activePlayer === 2) {
       this.beginAiTurn(aiDifficulty);

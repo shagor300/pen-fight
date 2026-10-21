@@ -1,13 +1,10 @@
-/**
- * PenSelectorModal.ts
- * 8-Pen Showcase with 5-star stat bars, XP progress bar, level unlocks, and equip buttons.
- * PRD §6: 8 Pens, 5 Stats & XP Progression System.
- */
-import { Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
-import { ALL_PENS, PenConfig } from '../config/pensConfig';
+import { Container, Graphics, Sprite, Text, TextStyle } from 'pixi.js';
+import { PENS_ROSTER } from '../config/pensConfig';
 import { ProgressionManager } from '../core/ProgressionManager';
 import { COLORS } from '../config/gameConstants';
-import { renderPenToCanvas, PIXELS_PER_METER } from '../rendering/RealPenRenderer';
+import { renderPenToCanvas } from '../rendering/RealPenRenderer';
+import { AIDifficulty } from '../core/GameManager';
+import { soundManager } from '../audio/SoundAndHaptics';
 import EventEmitter from 'eventemitter3';
 
 export class PenSelectorModal extends EventEmitter {
@@ -16,32 +13,34 @@ export class PenSelectorModal extends EventEmitter {
   private screenHeight: number;
   private progression: ProgressionManager;
 
-  private selectedIndex = 0;
-  private p1EquippedIndex = 0;
-  private p2EquippedIndex = 0;
+  public selectedIndex = 0;
+  public p2SelectedIndex = 1;
+  private pickingForPlayer: 1 | 2 = 1;
+  private showStatsOverlay = false;
 
-  // Visual Nodes
+  private mode: 'VS_AI' | 'TWO_PLAYER' = 'VS_AI';
+  private selectedDifficulty: AIDifficulty = 'normal';
+  private penLook: 'real' | 'classic' = 'real';
+  private equalLevels = true;
+  private mirrorMatch = false;
+
   private backdrop: Graphics;
-  private card: Graphics;
-  private penPreviewContainer: Container;
-  private previewSprite: Sprite | null = null;
-  private penGraphics: Graphics;
-  private shadowGraphics: Graphics;
+  private topBarContainer: Container;
+  private mainCard: Container;
+  private mainCardSurface: Graphics;
+  private penCanvasEl: HTMLCanvasElement;
+  private penCanvasCtx: CanvasRenderingContext2D;
+  private penSprite: Sprite;
+  private statsOverlayContainer: Container;
 
   private titleText: Text;
-  private descText: Text;
+  private taglineText: Text;
   private levelBadgeText: Text;
-  private xpText: Text;
-  private xpBar: Graphics;
-  private perksText: Text;
-
-  private statBarsContainer: Container;
-  private equipP1Btn: Container;
-  private equipP2Btn: Container;
-  private closeBtn: Container;
-  private prevBtn: Container;
-  private nextBtn: Container;
   private dotsContainer: Container;
+  private lookToggleContainer: Container;
+
+  private controlsContainer: Container;
+  private fightBtn: Container;
 
   constructor(
     screenWidth: number,
@@ -56,231 +55,106 @@ export class PenSelectorModal extends EventEmitter {
     this.container = new Container();
     this.container.visible = false;
 
-    // Dark backdrop
     this.backdrop = new Graphics();
     this.backdrop.eventMode = 'static';
-    this.backdrop.cursor = 'default';
-    this.backdrop.on('pointerdown', (e) => e.stopPropagation());
     this.container.addChild(this.backdrop);
 
-    // Main Card
-    this.card = new Graphics();
-    this.container.addChild(this.card);
+    this.topBarContainer = new Container();
+    this.container.addChild(this.topBarContainer);
 
-    // Pen Preview Stage
-    this.penPreviewContainer = new Container();
-    this.shadowGraphics = new Graphics();
-    this.penGraphics = new Graphics();
-    this.penPreviewContainer.addChild(this.shadowGraphics);
-    this.penPreviewContainer.addChild(this.penGraphics);
-    this.container.addChild(this.penPreviewContainer);
+    this.mainCard = new Container();
+    this.mainCardSurface = new Graphics();
+    this.mainCard.addChild(this.mainCardSurface);
+    this.container.addChild(this.mainCard);
 
-    // Title & Info
+    this.penCanvasEl = document.createElement('canvas');
+    this.penCanvasEl.width = 460;
+    this.penCanvasEl.height = 240;
+    this.penCanvasCtx = this.penCanvasEl.getContext('2d')!;
+    this.penSprite = Sprite.from(this.penCanvasEl);
+    this.penSprite.anchor.set(0.5, 0.5);
+    this.mainCard.addChild(this.penSprite);
+
+    this.statsOverlayContainer = new Container();
+    this.statsOverlayContainer.visible = false;
+    this.mainCard.addChild(this.statsOverlayContainer);
+
     this.titleText = new Text({
       text: '',
       style: new TextStyle({
         fontFamily: 'Fredoka, sans-serif',
-        fontSize: 22,
+        fontSize: 26,
         fill: COLORS.textDark,
         fontWeight: 'bold',
-      }),
+      })
     });
     this.titleText.anchor.set(0.5, 0);
-    this.container.addChild(this.titleText);
+    this.mainCard.addChild(this.titleText);
 
-    this.descText = new Text({
+    this.taglineText = new Text({
       text: '',
       style: new TextStyle({
         fontFamily: 'Nunito, sans-serif',
         fontSize: 13,
-        fill: 0x555555,
-        align: 'center',
-        wordWrap: true,
-        wordWrapWidth: 320,
-      }),
+        fill: COLORS.textMuted,
+        fontWeight: 'bold',
+      })
     });
-    this.descText.anchor.set(0.5, 0);
-    this.container.addChild(this.descText);
+    this.taglineText.anchor.set(0.5, 0);
+    this.mainCard.addChild(this.taglineText);
 
-    // Level & XP
     this.levelBadgeText = new Text({
-      text: 'Lv. 1',
+      text: 'Lv1',
       style: new TextStyle({
         fontFamily: 'Fredoka, sans-serif',
         fontSize: 14,
-        fill: COLORS.accent,
+        fill: COLORS.textDark,
         fontWeight: 'bold',
-      }),
+      })
     });
-    this.levelBadgeText.anchor.set(0.5, 0);
-    this.container.addChild(this.levelBadgeText);
-
-    this.xpBar = new Graphics();
-    this.container.addChild(this.xpBar);
-
-    this.xpText = new Text({
-      text: '0 / 200 XP',
-      style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
-        fontSize: 11,
-        fill: 0x666666,
-      }),
-    });
-    this.xpText.anchor.set(0.5, 0.5);
-    this.container.addChild(this.xpText);
-
-    this.perksText = new Text({
-      text: '',
-      style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
-        fontSize: 11,
-        fill: 0x2A9D8F,
-        fontStyle: 'italic',
-      }),
-    });
-    this.perksText.anchor.set(0.5, 0);
-    this.container.addChild(this.perksText);
-
-    // Stat bars
-    this.statBarsContainer = new Container();
-    this.container.addChild(this.statBarsContainer);
-
-    // Navigation arrows & Dots
-    this.prevBtn = this.createNavButton('◀', () => this.prevPen());
-    this.nextBtn = this.createNavButton('▶', () => this.nextPen());
-    this.container.addChild(this.prevBtn);
-    this.container.addChild(this.nextBtn);
+    this.levelBadgeText.anchor.set(0.5, 0.5);
 
     this.dotsContainer = new Container();
-    this.container.addChild(this.dotsContainer);
+    this.mainCard.addChild(this.dotsContainer);
 
-    // Equip Buttons
-    this.equipP1Btn = this.createActionButton('P1 EQUIP', COLORS.accent, () => {
-      this.p1EquippedIndex = this.selectedIndex;
-      this.updateView();
-      this.emit('equip_p1', this.selectedIndex);
-    });
-    this.equipP2Btn = this.createActionButton('P2 EQUIP', 0x3A86FF, () => {
-      this.p2EquippedIndex = this.selectedIndex;
-      this.updateView();
-      this.emit('equip_p2', this.selectedIndex);
-    });
-    this.container.addChild(this.equipP1Btn);
-    this.container.addChild(this.equipP2Btn);
+    this.lookToggleContainer = new Container();
+    this.mainCard.addChild(this.lookToggleContainer);
 
-    // Close button
-    this.closeBtn = this.createCloseButton();
-    this.container.addChild(this.closeBtn);
+    this.controlsContainer = new Container();
+    this.container.addChild(this.controlsContainer);
+
+    this.fightBtn = this.createFightButton();
+    this.container.addChild(this.fightBtn);
 
     this.layout();
-    this.updateView();
   }
 
-  private createNavButton(label: string, onClick: () => void): Container {
-    const btn = new Container();
-    const bg = new Graphics()
-      .circle(0, 0, 18)
-      .fill({ color: COLORS.woodMid, alpha: 0.8 })
-      .stroke({ color: COLORS.cream, width: 1.5 });
-    btn.addChild(bg);
-
-    const txt = new Text({
-      text: label,
-      style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
-        fontSize: 14,
-        fill: COLORS.white,
-      }),
-    });
-    txt.anchor.set(0.5, 0.5);
-    btn.addChild(txt);
-
-    btn.eventMode = 'static';
-    btn.cursor = 'pointer';
-    btn.on('pointerdown', (e) => {
-      e.stopPropagation();
-      onClick();
-    });
-    return btn;
-  }
-
-  private createActionButton(label: string, color: number, onClick: () => void): Container {
-    const btn = new Container();
-    const bg = new Graphics()
-      .roundRect(-65, -18, 130, 36, 18)
-      .fill({ color })
-      .stroke({ color: COLORS.white, width: 1.5 });
-    btn.addChild(bg);
-
-    const txt = new Text({
-      text: label,
-      style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
-        fontSize: 13,
-        fill: COLORS.white,
-        fontWeight: 'bold',
-      }),
-    });
-    txt.anchor.set(0.5, 0.5);
-    btn.addChild(txt);
-
-    btn.eventMode = 'static';
-    btn.cursor = 'pointer';
-    btn.on('pointerdown', (e) => {
-      e.stopPropagation();
-      onClick();
-    });
-    return btn;
-  }
-
-  private createCloseButton(): Container {
-    const btn = new Container();
-    const bg = new Graphics()
-      .circle(0, 0, 15)
-      .fill({ color: 0x333333, alpha: 0.8 });
-    btn.addChild(bg);
-
-    const txt = new Text({
-      text: '✕',
-      style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
-        fontSize: 14,
-        fill: COLORS.white,
-      }),
-    });
-    txt.anchor.set(0.5, 0.5);
-    btn.addChild(txt);
-
-    btn.eventMode = 'static';
-    btn.cursor = 'pointer';
-    btn.on('pointerdown', (e) => {
-      e.stopPropagation();
-      this.hide();
-    });
-    return btn;
-  }
-
-  public show(p1Index = 0, p2Index = 0): void {
-    this.p1EquippedIndex = p1Index;
-    this.p2EquippedIndex = p2Index;
+  public show(p1Index = 0, mode: 'VS_AI' | 'TWO_PLAYER' = 'VS_AI', diff: AIDifficulty = 'normal'): void {
     this.selectedIndex = p1Index;
+    this.pickingForPlayer = 1;
+    this.mode = mode;
+    this.selectedDifficulty = diff;
     this.container.visible = true;
-    this.updateView();
+    this.layout();
+    this.updateCard();
   }
 
   public hide(): void {
     this.container.visible = false;
-    this.emit('closed', { p1: this.p1EquippedIndex, p2: this.p2EquippedIndex });
   }
 
-  private prevPen(): void {
-    this.selectedIndex = (this.selectedIndex - 1 + ALL_PENS.length) % ALL_PENS.length;
-    this.updateView();
+  private getCurrentActivePenIndex(): number {
+    return this.mode === 'TWO_PLAYER' && this.pickingForPlayer === 2
+      ? this.p2SelectedIndex
+      : this.selectedIndex;
   }
 
-  private nextPen(): void {
-    this.selectedIndex = (this.selectedIndex + 1) % ALL_PENS.length;
-    this.updateView();
+  private setCurrentActivePenIndex(idx: number): void {
+    if (this.mode === 'TWO_PLAYER' && this.pickingForPlayer === 2) {
+      this.p2SelectedIndex = idx;
+    } else {
+      this.selectedIndex = idx;
+    }
   }
 
   public layout(screenWidth = this.screenWidth, screenHeight = this.screenHeight): void {
@@ -289,206 +163,731 @@ export class PenSelectorModal extends EventEmitter {
 
     this.backdrop.clear()
       .rect(0, 0, screenWidth, screenHeight)
-      .fill({ color: 0x000000, alpha: 0.7 });
+      .fill({ color: 0x121820, alpha: 0.65 });
 
-    const cardW = Math.min(screenWidth - 32, 400);
-    const cardH = Math.min(screenHeight - 40, 680);
-    const cardX = (screenWidth - cardW) / 2;
-    const cardY = (screenHeight - cardH) / 2;
+    this.topBarContainer.removeChildren();
+    const topY = Math.max(24, screenHeight * 0.035);
 
-    this.card.clear()
-      .roundRect(cardX, cardY, cardW, cardH, 20)
-      .fill({ color: COLORS.cream })
-      .stroke({ color: COLORS.woodMid, width: 4 });
+    const backBtn = this.createSquareButton('⇦', COLORS.butterYellow, () => {
+      soundManager.play('ui_click');
+      this.hide();
+      this.emit('back');
+    });
+    backBtn.x = 22;
+    backBtn.y = topY;
+    this.topBarContainer.addChild(backBtn);
 
-    this.closeBtn.x = cardX + cardW - 22;
-    this.closeBtn.y = cardY + 22;
+    const titleStyle = new TextStyle({
+      fontFamily: 'Fredoka, Nunito, sans-serif',
+      fontSize: 24,
+      fill: COLORS.cardCream,
+      stroke: { color: COLORS.navyBorder, width: 4 },
+      fontWeight: 'bold',
+    });
+    const headerTitle = new Text({ text: 'Pick your pen', style: titleStyle });
+    headerTitle.anchor.set(0, 0.5);
+    headerTitle.x = 80;
+    headerTitle.y = topY + 22;
+    this.topBarContainer.addChild(headerTitle);
 
-    this.titleText.x = screenWidth / 2;
-    this.titleText.y = cardY + 20;
+    const modePill = this.createModeBadge(this.mode === 'VS_AI' ? '🤖 vs Computer' : '👥 2 players');
+    modePill.x = screenWidth - 22;
+    modePill.y = topY + 22;
+    this.topBarContainer.addChild(modePill);
 
-    this.descText.x = screenWidth / 2;
-    this.descText.y = cardY + 52;
+    const cardW = Math.min(screenWidth - 34, 380);
+    const cardH = 340;
+    this.mainCard.x = screenWidth / 2;
+    this.mainCard.y = Math.max(84, screenHeight * 0.11) + cardH / 2;
 
-    this.penPreviewContainer.x = screenWidth / 2;
-    this.penPreviewContainer.y = cardY + 120;
+    this.mainCardSurface.removeChildren();
+    this.mainCardSurface.clear();
+    this.mainCardSurface
+      .roundRect(-cardW / 2, -cardH / 2 + 6, cardW, cardH, 22)
+      .fill({ color: COLORS.navyShadow });
+    this.mainCardSurface
+      .roundRect(-cardW / 2, -cardH / 2, cardW, cardH, 22)
+      .fill({ color: COLORS.cardCream })
+      .stroke({ color: COLORS.navyBorder, width: 3.5 });
 
-    this.prevBtn.x = cardX + 35;
-    this.prevBtn.y = cardY + 120;
+    const badgeW = 52;
+    const badgeH = 26;
+    this.mainCardSurface
+      .roundRect(-cardW / 2 + 16, -cardH / 2 + 14, badgeW, badgeH, 10)
+      .fill({ color: COLORS.butterYellow })
+      .stroke({ color: COLORS.navyBorder, width: 2.2 });
+    this.levelBadgeText.x = -cardW / 2 + 16 + badgeW / 2;
+    this.levelBadgeText.y = -cardH / 2 + 14 + badgeH / 2;
+    this.mainCardSurface.addChild(this.levelBadgeText);
 
-    this.nextBtn.x = cardX + cardW - 35;
-    this.nextBtn.y = cardY + 120;
+    const infoBtn = this.createInfoButton();
+    infoBtn.x = cardW / 2 - 34;
+    infoBtn.y = -cardH / 2 + 27;
+    this.mainCardSurface.addChild(infoBtn);
 
-    this.dotsContainer.x = screenWidth / 2;
-    this.dotsContainer.y = cardY + 165;
+    const frameW = cardW - 32;
+    const frameH = 176;
+    const frameY = -cardH / 2 + 50;
 
-    this.levelBadgeText.x = screenWidth / 2;
-    this.levelBadgeText.y = cardY + 185;
+    this.mainCardSurface
+      .roundRect(-frameW / 2, frameY, frameW, frameH, 16)
+      .fill({ color: 0x986B3E })
+      .stroke({ color: COLORS.navyBorder, width: 3 });
 
-    this.xpBar.x = screenWidth / 2;
-    this.xpBar.y = cardY + 215;
+    for (let x = -frameW / 2 + 40; x < frameW / 2; x += 60) {
+      this.mainCardSurface
+        .rect(x, frameY + 2, 2, frameH - 4)
+        .fill({ color: 0x6E4522, alpha: 0.25 });
+    }
 
-    this.xpText.x = screenWidth / 2;
-    this.xpText.y = cardY + 215;
+    const prevArrow = this.createArrowButton('❮', () => this.prevPen());
+    prevArrow.x = -frameW / 2 + 24;
+    prevArrow.y = frameY + frameH / 2;
+    this.mainCardSurface.addChild(prevArrow);
 
-    this.perksText.x = screenWidth / 2;
-    this.perksText.y = cardY + 230;
+    const nextArrow = this.createArrowButton('❯', () => this.nextPen());
+    nextArrow.x = frameW / 2 - 24;
+    nextArrow.y = frameY + frameH / 2;
+    this.mainCardSurface.addChild(nextArrow);
 
-    this.statBarsContainer.x = cardX + 30;
-    this.statBarsContainer.y = cardY + 258;
+    this.penSprite.x = 0;
+    this.penSprite.y = frameY + frameH / 2;
 
-    this.equipP1Btn.x = screenWidth / 2 - 75;
-    this.equipP1Btn.y = cardY + cardH - 35;
+    this.statsOverlayContainer.x = 0;
+    this.statsOverlayContainer.y = frameY + frameH / 2;
 
-    this.equipP2Btn.x = screenWidth / 2 + 75;
-    this.equipP2Btn.y = cardY + cardH - 35;
+    this.titleText.y = frameY + frameH + 10;
+    this.taglineText.y = frameY + frameH + 42;
+
+    this.buildLookToggle(cardW, frameY + frameH + 70);
+
+    this.controlsContainer.x = screenWidth / 2;
+    this.controlsContainer.y = this.mainCard.y + cardH / 2 + 14;
+    this.buildControls(cardW);
+
+    this.fightBtn.x = screenWidth / 2;
+    this.fightBtn.y = Math.min(screenHeight - 48, this.controlsContainer.y + 150);
   }
 
-  private updateView(): void {
-    const pen = ALL_PENS[this.selectedIndex];
-    const progress = this.progression.getProgress(pen.id);
-    const xpInfo = this.progression.getXPForNextLevel(pen.id);
-    const bonus = this.progression.getStatBonus(pen.id);
+  private buildLookToggle(_cardW: number, y: number): void {
+    this.lookToggleContainer.removeChildren();
+    this.lookToggleContainer.y = y;
+
+    const pillW = 140;
+    const pillH = 32;
+    const pillR = 9999;
+
+    const bg = new Graphics()
+      .roundRect(-pillW / 2, 0, pillW, pillH, pillR)
+      .fill({ color: 0xEAE4D2 })
+      .stroke({ color: COLORS.navyBorder, width: 2 });
+    this.lookToggleContainer.addChild(bg);
+
+    const isReal = this.penLook === 'real';
+    const activeW = pillW / 2 - 3;
+    const activeX = isReal ? 1 : -pillW / 2 + 2;
+    const activeG = new Graphics()
+      .roundRect(activeX, 2, activeW, pillH - 4, pillR)
+      .fill({ color: COLORS.butterYellow })
+      .stroke({ color: COLORS.navyBorder, width: 2 });
+    this.lookToggleContainer.addChild(activeG);
+
+    const classicTxt = new Text({
+      text: 'Classic',
+      style: new TextStyle({
+        fontFamily: 'Fredoka, Nunito, sans-serif',
+        fontSize: 12,
+        fill: COLORS.textDark,
+        fontWeight: 'bold',
+      })
+    });
+    classicTxt.anchor.set(0.5, 0.5);
+    classicTxt.x = -pillW / 4;
+    classicTxt.y = pillH / 2;
+    this.lookToggleContainer.addChild(classicTxt);
+
+    const realTxt = new Text({
+      text: 'Real',
+      style: new TextStyle({
+        fontFamily: 'Fredoka, Nunito, sans-serif',
+        fontSize: 12,
+        fill: COLORS.textDark,
+        fontWeight: 'bold',
+      })
+    });
+    realTxt.anchor.set(0.5, 0.5);
+    realTxt.x = pillW / 4;
+    realTxt.y = pillH / 2;
+    this.lookToggleContainer.addChild(realTxt);
+
+    this.lookToggleContainer.eventMode = 'static';
+    this.lookToggleContainer.cursor = 'pointer';
+    this.lookToggleContainer.removeAllListeners();
+    this.lookToggleContainer.on('pointerdown', () => {
+      soundManager.play('ui_click');
+      this.penLook = this.penLook === 'real' ? 'classic' : 'real';
+      this.layout();
+      this.updateCard();
+    });
+  }
+
+  private buildControls(w: number): void {
+    this.controlsContainer.removeChildren();
+
+    if (this.mode === 'VS_AI') {
+      const compLabel = new Text({
+        text: 'COMPUTER DIFFICULTY',
+        style: new TextStyle({
+          fontFamily: 'Nunito, sans-serif',
+          fontSize: 11,
+          fill: 0xD6CDBA,
+          fontWeight: '800',
+          letterSpacing: 1.5,
+        })
+      });
+      compLabel.anchor.set(0.5, 0);
+      compLabel.y = 0;
+      this.controlsContainer.addChild(compLabel);
+
+      const diffRow = new Container();
+      diffRow.y = 20;
+
+      const diffs: { id: AIDifficulty; label: string }[] = [
+        { id: 'easy', label: 'Easy' },
+        { id: 'normal', label: 'Normal' },
+        { id: 'hard', label: 'Hard' },
+      ];
+
+      const btnW = (w - 24) / 4;
+      const btnH = 36;
+      const startX = -w / 2;
+
+      diffs.forEach((d, i) => {
+        const btn = new Container();
+        btn.x = startX + i * (btnW + 8) + btnW / 2;
+        btn.eventMode = 'static';
+        btn.cursor = 'pointer';
+
+        const isSel = this.selectedDifficulty === d.id;
+        const bg = new Graphics()
+          .roundRect(-btnW / 2, 0, btnW, btnH, 12)
+          .fill({ color: isSel ? COLORS.skyBlue : COLORS.cardCream })
+          .stroke({ color: COLORS.navyBorder, width: isSel ? 2.8 : 2 });
+        btn.addChild(bg);
+
+        const txt = new Text({
+          text: d.label,
+          style: new TextStyle({
+            fontFamily: 'Fredoka, sans-serif',
+            fontSize: 13,
+            fill: COLORS.textDark,
+            fontWeight: 'bold',
+          })
+        });
+        txt.anchor.set(0.5, 0.5);
+        txt.y = btnH / 2;
+        btn.addChild(txt);
+
+        btn.on('pointerdown', () => {
+          soundManager.play('ui_click');
+          this.selectedDifficulty = d.id;
+          this.buildControls(w);
+        });
+
+        diffRow.addChild(btn);
+      });
+
+      const masterBtn = new Container();
+      masterBtn.x = startX + 3 * (btnW + 8) + btnW / 2;
+      const masterBg = new Graphics()
+        .roundRect(-btnW / 2, 0, btnW, btnH, 12)
+        .fill({ color: 0xEAE4D2, alpha: 0.6 })
+        .stroke({ color: COLORS.navyBorder, width: 2 });
+      masterBtn.addChild(masterBg);
+
+      const masterTxt = new Text({
+        text: 'Master 🔒',
+        style: new TextStyle({
+          fontFamily: 'Fredoka, sans-serif',
+          fontSize: 12,
+          fill: COLORS.textMuted,
+          fontWeight: 'bold',
+        })
+      });
+      masterTxt.anchor.set(0.5, 0.5);
+      masterTxt.y = btnH / 2;
+      masterBtn.addChild(masterTxt);
+      diffRow.addChild(masterBtn);
+
+      this.controlsContainer.addChild(diffRow);
+    } else {
+      const pLabel = new Text({
+        text: 'SELECT PEN FOR PLAYER',
+        style: new TextStyle({
+          fontFamily: 'Nunito, sans-serif',
+          fontSize: 11,
+          fill: 0xD6CDBA,
+          fontWeight: '800',
+          letterSpacing: 1.5,
+        })
+      });
+      pLabel.anchor.set(0.5, 0);
+      pLabel.y = 0;
+      this.controlsContainer.addChild(pLabel);
+
+      const tabRow = new Container();
+      tabRow.y = 20;
+      const tabW = (w - 12) / 2;
+      const tabH = 38;
+
+      const p1PenName = PENS_ROSTER[this.selectedIndex]?.name || 'Pen 1';
+      const p2PenName = PENS_ROSTER[this.p2SelectedIndex]?.name || 'Pen 2';
+
+      const p1Tab = new Container();
+      p1Tab.x = -w / 2 + tabW / 2;
+      p1Tab.eventMode = 'static';
+      p1Tab.cursor = 'pointer';
+      const p1Sel = this.pickingForPlayer === 1;
+      p1Tab.addChild(
+        new Graphics()
+          .roundRect(-tabW / 2, 0, tabW, tabH, 12)
+          .fill({ color: p1Sel ? COLORS.peachOrange : COLORS.cardCream })
+          .stroke({ color: COLORS.navyBorder, width: p1Sel ? 2.8 : 2 })
+      );
+      const p1Txt = new Text({
+        text: `P1: ${p1PenName}`,
+        style: new TextStyle({ fontFamily: 'Fredoka, sans-serif', fontSize: 12, fill: COLORS.textDark, fontWeight: 'bold' })
+      });
+      p1Txt.anchor.set(0.5, 0.5);
+      p1Txt.y = tabH / 2;
+      p1Tab.addChild(p1Txt);
+      p1Tab.on('pointerdown', () => {
+        soundManager.play('ui_click');
+        this.pickingForPlayer = 1;
+        this.buildControls(w);
+        this.updateCard();
+      });
+      tabRow.addChild(p1Tab);
+
+      const p2Tab = new Container();
+      p2Tab.x = w / 2 - tabW / 2;
+      p2Tab.eventMode = 'static';
+      p2Tab.cursor = 'pointer';
+      const p2Sel = this.pickingForPlayer === 2;
+      p2Tab.addChild(
+        new Graphics()
+          .roundRect(-tabW / 2, 0, tabW, tabH, 12)
+          .fill({ color: p2Sel ? COLORS.skyBlue : COLORS.cardCream })
+          .stroke({ color: COLORS.navyBorder, width: p2Sel ? 2.8 : 2 })
+      );
+      const p2Txt = new Text({
+        text: `P2: ${p2PenName}`,
+        style: new TextStyle({ fontFamily: 'Fredoka, sans-serif', fontSize: 12, fill: COLORS.textDark, fontWeight: 'bold' })
+      });
+      p2Txt.anchor.set(0.5, 0.5);
+      p2Txt.y = tabH / 2;
+      p2Tab.addChild(p2Txt);
+      p2Tab.on('pointerdown', () => {
+        soundManager.play('ui_click');
+        this.pickingForPlayer = 2;
+        this.buildControls(w);
+        this.updateCard();
+      });
+      tabRow.addChild(p2Tab);
+
+      this.controlsContainer.addChild(tabRow);
+    }
+
+    const optsRow = new Container();
+    optsRow.y = 66;
+    const optW = (w - 12) / 2;
+
+    const eqBtn = this.createTogglePill(optW, 'Equal levels', this.equalLevels, () => {
+      soundManager.play('ui_click');
+      this.equalLevels = !this.equalLevels;
+      this.buildControls(w);
+    });
+    eqBtn.x = -w / 2 + optW / 2;
+    optsRow.addChild(eqBtn);
+
+    const mirrorBtn = this.createTogglePill(optW, 'Mirror match', this.mirrorMatch, () => {
+      soundManager.play('ui_click');
+      this.mirrorMatch = !this.mirrorMatch;
+      this.buildControls(w);
+    });
+    mirrorBtn.x = w / 2 - optW / 2;
+    optsRow.addChild(mirrorBtn);
+
+    this.controlsContainer.addChild(optsRow);
+  }
+
+  private createTogglePill(w: number, label: string, active: boolean, onToggle: () => void): Container {
+    const pill = new Container();
+    pill.eventMode = 'static';
+    pill.cursor = 'pointer';
+
+    const h = 36;
+    const bg = new Graphics()
+      .roundRect(-w / 2, 0, w, h, 12)
+      .fill({ color: active ? 0xDCECD0 : COLORS.cardCream })
+      .stroke({ color: COLORS.navyBorder, width: 2 });
+    pill.addChild(bg);
+
+    const txt = new Text({
+      text: label,
+      style: new TextStyle({
+        fontFamily: 'Nunito, sans-serif',
+        fontSize: 12,
+        fill: COLORS.textDark,
+        fontWeight: 'bold',
+      })
+    });
+    txt.anchor.set(0, 0.5);
+    txt.x = -w / 2 + 12;
+    txt.y = h / 2;
+    pill.addChild(txt);
+
+    const swW = 32;
+    const swH = 18;
+    const swX = w / 2 - 12 - swW;
+    const swY = (h - swH) / 2;
+
+    const swBg = new Graphics()
+      .roundRect(swX, swY, swW, swH, 9999)
+      .fill({ color: active ? COLORS.mintGreen : 0xD1D5DB })
+      .stroke({ color: COLORS.navyBorder, width: 1.5 });
+    pill.addChild(swBg);
+
+    const knobX = active ? swX + swW - 9 : swX + 9;
+    const knob = new Graphics()
+      .circle(knobX, swY + swH / 2, 7)
+      .fill({ color: COLORS.cardCream })
+      .stroke({ color: COLORS.navyBorder, width: 1.5 });
+    pill.addChild(knob);
+
+    pill.on('pointerdown', onToggle);
+    return pill;
+  }
+
+  private createFightButton(): Container {
+    const btn = new Container();
+    btn.eventMode = 'static';
+    btn.cursor = 'pointer';
+
+    const w = Math.min(this.screenWidth - 34, 380);
+    const h = 64;
+    const r = 9999;
+
+    const shadow = new Graphics()
+      .roundRect(-w / 2, 6, w, h, r)
+      .fill({ color: COLORS.navyShadow });
+    btn.addChild(shadow);
+
+    const surface = new Graphics()
+      .roundRect(-w / 2, 0, w, h, r)
+      .fill({ color: COLORS.butterYellow })
+      .stroke({ color: COLORS.navyBorder, width: 3.5 });
+    btn.addChild(surface);
+
+    const content = new Container();
+    const playIcon = new Text({
+      text: '▷',
+      style: new TextStyle({
+        fontFamily: 'Fredoka, sans-serif',
+        fontSize: 32,
+        fill: COLORS.textDark,
+        fontWeight: 'bold',
+      })
+    });
+    playIcon.anchor.set(1, 0.5);
+    playIcon.x = -6;
+    playIcon.y = h / 2 - 1;
+    content.addChild(playIcon);
+
+    const label = new Text({
+      text: 'Fight',
+      style: new TextStyle({
+        fontFamily: 'Fredoka, Nunito, sans-serif',
+        fontSize: 30,
+        fill: COLORS.textDark,
+        fontWeight: 'bold',
+        letterSpacing: 1,
+      })
+    });
+    label.anchor.set(0, 0.5);
+    label.x = 4;
+    label.y = h / 2 - 1;
+    content.addChild(label);
+
+    surface.addChild(content);
+
+    btn.on('pointerdown', () => { surface.y = 4; });
+    btn.on('pointerup', () => {
+      surface.y = 0;
+      soundManager.play('ui_click');
+      this.hide();
+      this.emit('start_fight', {
+        penIndex: this.selectedIndex,
+        p2PenIndex: this.p2SelectedIndex,
+        mode: this.mode,
+        difficulty: this.selectedDifficulty,
+        look: this.penLook,
+        mirror: this.mirrorMatch,
+        equalLevels: this.equalLevels
+      });
+    });
+    btn.on('pointerupoutside', () => { surface.y = 0; });
+
+    return btn;
+  }
+
+  private createSquareButton(icon: string, color: number, onClick: () => void): Container {
+    const btn = new Container();
+    btn.eventMode = 'static';
+    btn.cursor = 'pointer';
+
+    const s = 46;
+    const r = 14;
+
+    const shadow = new Graphics().roundRect(0, 4, s, s, r).fill({ color: COLORS.navyShadow });
+    btn.addChild(shadow);
+
+    const body = new Graphics()
+      .roundRect(0, 0, s, s, r)
+      .fill({ color: COLORS.cardCream })
+      .stroke({ color: COLORS.navyBorder, width: 3 });
+    btn.addChild(body);
+
+    const txt = new Text({
+      text: icon,
+      style: new TextStyle({
+        fontFamily: 'Fredoka, sans-serif',
+        fontSize: 24,
+        fill: color,
+        stroke: { color: COLORS.navyBorder, width: 2.5 },
+        fontWeight: 'bold',
+      })
+    });
+    txt.anchor.set(0.5, 0.5);
+    txt.x = s / 2;
+    txt.y = s / 2 - 1;
+    body.addChild(txt);
+
+    btn.on('pointerdown', () => { body.y = 3; });
+    btn.on('pointerup', () => {
+      body.y = 0;
+      onClick();
+    });
+    btn.on('pointerupoutside', () => { body.y = 0; });
+
+    return btn;
+  }
+
+  private createModeBadge(text: string): Container {
+    const badge = new Container();
+    const w = 126;
+    const h = 34;
+
+    const bg = new Graphics()
+      .roundRect(-w, -h / 2, w, h, 9999)
+      .fill({ color: COLORS.skyBlue })
+      .stroke({ color: COLORS.navyBorder, width: 2 });
+    badge.addChild(bg);
+
+    const txt = new Text({
+      text,
+      style: new TextStyle({
+        fontFamily: 'Fredoka, Nunito, sans-serif',
+        fontSize: 12,
+        fill: COLORS.textDark,
+        fontWeight: 'bold',
+      })
+    });
+    txt.anchor.set(0.5, 0.5);
+    txt.x = -w / 2;
+    badge.addChild(txt);
+
+    return badge;
+  }
+
+  private createInfoButton(): Container {
+    const btn = new Container();
+    btn.eventMode = 'static';
+    btn.cursor = 'pointer';
+    const r = 15;
+    const bg = new Graphics()
+      .circle(0, 0, r)
+      .fill({ color: this.showStatsOverlay ? COLORS.butterYellow : COLORS.cardCream })
+      .stroke({ color: COLORS.navyBorder, width: 2 });
+    btn.addChild(bg);
+
+    const txt = new Text({
+      text: 'ⓘ',
+      style: new TextStyle({
+        fontFamily: 'Fredoka, sans-serif',
+        fontSize: 16,
+        fill: COLORS.textDark,
+        fontWeight: 'bold',
+      })
+    });
+    txt.anchor.set(0.5, 0.5);
+    btn.addChild(txt);
+
+    btn.on('pointerdown', (e) => {
+      e.stopPropagation();
+      soundManager.play('ui_click');
+      this.showStatsOverlay = !this.showStatsOverlay;
+      this.layout();
+      this.updateCard();
+    });
+    return btn;
+  }
+
+  private createArrowButton(label: string, onClick: () => void): Container {
+    const btn = new Container();
+    btn.eventMode = 'static';
+    btn.cursor = 'pointer';
+
+    const s = 38;
+    const r = 12;
+
+    const shadow = new Graphics().roundRect(-s / 2, -s / 2 + 3, s, s, r).fill({ color: COLORS.navyShadow });
+    btn.addChild(shadow);
+
+    const surface = new Graphics()
+      .roundRect(-s / 2, -s / 2, s, s, r)
+      .fill({ color: COLORS.cardCream })
+      .stroke({ color: COLORS.navyBorder, width: 2.5 });
+    btn.addChild(surface);
+
+    const txt = new Text({
+      text: label,
+      style: new TextStyle({
+        fontFamily: 'Fredoka, sans-serif',
+        fontSize: 16,
+        fill: COLORS.textDark,
+        fontWeight: 'bold',
+      })
+    });
+    txt.anchor.set(0.5, 0.5);
+    surface.addChild(txt);
+
+    btn.on('pointerdown', (e) => {
+      e.stopPropagation();
+      surface.y = 2;
+    });
+    btn.on('pointerup', (e) => {
+      e.stopPropagation();
+      surface.y = 0;
+      soundManager.play('ui_click');
+      onClick();
+    });
+    btn.on('pointerupoutside', () => { surface.y = 0; });
+
+    return btn;
+  }
+
+  private prevPen(): void {
+    const cur = this.getCurrentActivePenIndex();
+    this.setCurrentActivePenIndex((cur - 1 + PENS_ROSTER.length) % PENS_ROSTER.length);
+    if (this.mode === 'TWO_PLAYER') {
+      this.buildControls(Math.min(this.screenWidth - 34, 380));
+    }
+    this.updateCard();
+  }
+
+  private nextPen(): void {
+    const cur = this.getCurrentActivePenIndex();
+    this.setCurrentActivePenIndex((cur + 1) % PENS_ROSTER.length);
+    if (this.mode === 'TWO_PLAYER') {
+      this.buildControls(Math.min(this.screenWidth - 34, 380));
+    }
+    this.updateCard();
+  }
+
+  public updateCard(): void {
+    const activeIdx = this.getCurrentActivePenIndex();
+    const pen = PENS_ROSTER[activeIdx];
+    if (!pen) return;
+
+    const prog = this.progression.getProgress(pen.id);
+    this.levelBadgeText.text = `Lv${prog.level}`;
 
     this.titleText.text = pen.name;
-    this.descText.text = pen.description;
+    this.taglineText.text = pen.tagline || pen.description || '';
 
-    // Level & XP
-    this.levelBadgeText.text = `Level ${progress.level}  (+${Math.round(bonus * 100)}% Bonus)`;
-    this.xpText.text = progress.level >= 5 ? 'MAX LEVEL' : `${xpInfo.current} / ${xpInfo.needed} XP`;
+    this.penCanvasCtx.clearRect(0, 0, this.penCanvasEl.width, this.penCanvasEl.height);
+    renderPenToCanvas(
+      this.penCanvasCtx,
+      pen,
+      this.penCanvasEl.width / 2,
+      this.penCanvasEl.height / 2,
+      -Math.PI / 5,
+      this.penLook,
+      1.22,
+      1.0,
+      prog.level
+    );
 
-    // Render XP Bar
-    const barW = 220;
-    const barH = 14;
-    this.xpBar.clear()
-      .roundRect(-barW / 2, -barH / 2, barW, barH, 7)
-      .fill({ color: 0xDCD6CD })
-      .stroke({ color: 0xAAAAAA, width: 1 })
-      .roundRect(-barW / 2, -barH / 2, barW * Math.min(1, xpInfo.ratio), barH, 7)
-      .fill({ color: COLORS.victory });
+    this.penSprite.texture.update();
 
-    // Perks info
-    const perksByLevel = [
-      'Base stats',
-      'Unlocked: Neon Ink Trail & +2% stats',
-      'Unlocked: Custom Sticker & +4% stats',
-      'Unlocked: Golden Hit Sparks & +6% stats',
-      'MAX: Master Golden Skin & +8% stats',
-    ];
-    this.perksText.text = perksByLevel[progress.level - 1];
+    this.statsOverlayContainer.removeChildren();
+    this.statsOverlayContainer.visible = this.showStatsOverlay;
+    if (this.showStatsOverlay) {
+      const boxW = 220;
+      const boxH = 142;
+      const bg = new Graphics()
+        .roundRect(-boxW / 2, -boxH / 2, boxW, boxH, 12)
+        .fill({ color: 0x1E2430, alpha: 0.92 })
+        .stroke({ color: COLORS.butterYellow, width: 2 });
+      this.statsOverlayContainer.addChild(bg);
 
-    // Draw Pen Preview
-    this.drawPreview(pen);
+      const statRows: { name: string; val: number }[] = [
+        { name: 'Weight', val: pen.stats.weight },
+        { name: 'Speed', val: pen.stats.speed },
+        { name: 'Spin', val: pen.stats.spin },
+        { name: 'Grip', val: pen.stats.grip },
+        { name: 'Reach', val: pen.stats.reach },
+      ];
 
-    // Draw Dots
-    this.drawDots();
+      statRows.forEach((st, idx) => {
+        const ry = -boxH / 2 + 16 + idx * 24;
+        const lbl = new Text({
+          text: st.name,
+          style: new TextStyle({ fontFamily: 'Nunito, sans-serif', fontSize: 12, fill: 0xF8FAFC, fontWeight: 'bold' })
+        });
+        lbl.x = -boxW / 2 + 16;
+        lbl.y = ry;
+        this.statsOverlayContainer.addChild(lbl);
 
-    // Draw 5-Star Stat Bars
-    this.drawStatBars(pen);
-
-    // Update Equip Button Labels
-    const p1Label = this.equipP1Btn.children[1] as Text;
-    const p2Label = this.equipP2Btn.children[1] as Text;
-
-    p1Label.text = this.p1EquippedIndex === this.selectedIndex ? '✓ P1 EQUIPPED' : 'EQUIP P1';
-    p2Label.text = this.p2EquippedIndex === this.selectedIndex ? '✓ P2 EQUIPPED' : 'EQUIP P2';
-  }
-
-  private drawPreview(pen: PenConfig): void {
-    if (this.previewSprite) {
-      this.penPreviewContainer.removeChild(this.previewSprite);
-      this.previewSprite.destroy();
-      this.previewSprite = null;
-    }
-
-    const L = Math.ceil(pen.dimensions.lengthMeters * PIXELS_PER_METER);
-    const W = Math.ceil(pen.dimensions.widthMeters * PIXELS_PER_METER);
-    const pad = 24;
-    const canvasW = L + pad * 2;
-    const canvasH = W + pad * 2;
-
-    const offscreen = document.createElement('canvas');
-    offscreen.width = canvasW;
-    offscreen.height = canvasH;
-    const ctx = offscreen.getContext('2d')!;
-
-    // 8-layer photorealistic rendering
-    renderPenToCanvas(ctx, pen, canvasW / 2, canvasH / 2, 0, 'real');
-
-    const texture = Texture.from(offscreen);
-    this.previewSprite = new Sprite(texture);
-    this.previewSprite.anchor.set(0.5, 0.5);
-    this.penPreviewContainer.addChild(this.previewSprite);
-  }
-
-  private drawDots(): void {
-    const dc = this.dotsContainer;
-    dc.removeChildren();
-
-    const dotCount = ALL_PENS.length;
-    const spacing = 14;
-    const startX = -((dotCount - 1) * spacing) / 2;
-
-    for (let i = 0; i < dotCount; i++) {
-      const dot = new Graphics();
-      const isSelected = i === this.selectedIndex;
-      dot.circle(startX + i * spacing, 0, isSelected ? 5 : 3.5)
-        .fill({ color: isSelected ? COLORS.accent : 0xBBBBBB });
-      dot.eventMode = 'static';
-      dot.cursor = 'pointer';
-      dot.on('pointerdown', (e) => {
-        e.stopPropagation();
-        this.selectedIndex = i;
-        this.updateView();
+        const starsStr = '★'.repeat(st.val) + '☆'.repeat(5 - st.val);
+        const stTxt = new Text({
+          text: starsStr,
+          style: new TextStyle({ fontFamily: 'Fredoka, sans-serif', fontSize: 13, fill: COLORS.butterYellow })
+        });
+        stTxt.anchor.set(1, 0);
+        stTxt.x = boxW / 2 - 16;
+        stTxt.y = ry - 1;
+        this.statsOverlayContainer.addChild(stTxt);
       });
-      dc.addChild(dot);
     }
-  }
 
-  private drawStatBars(pen: PenConfig): void {
-    const sc = this.statBarsContainer;
-    sc.removeChildren();
+    this.dotsContainer.removeChildren();
+    this.dotsContainer.y = -140;
 
-    const stats: [string, number][] = [
-      ['Weight', pen.stats.weight],
-      ['Speed', pen.stats.speed],
-      ['Spin', pen.stats.spin],
-      ['Grip', pen.stats.grip],
-      ['Reach', pen.stats.reach],
-    ];
+    const dotGap = 12;
+    const totalDotsW = (PENS_ROSTER.length - 1) * dotGap;
+    const startX = -totalDotsW / 2;
 
-    const rowH = 26;
-    const labelStyle = new TextStyle({
-      fontFamily: 'Fredoka, sans-serif',
-      fontSize: 13,
-      fill: COLORS.textDark,
-    });
-
-    stats.forEach(([label, value], idx) => {
-      const y = idx * rowH;
-
-      // Stat Name
-      const nameText = new Text({ text: label, style: labelStyle });
-      nameText.x = 0;
-      nameText.y = y;
-      sc.addChild(nameText);
-
-      // Star Bars (1-10 internal scale mapped to 1-5 stars)
-      const starsValue = Math.min(5, Math.max(1, Math.round(value / 2)));
-      const starsG = new Graphics();
-      const starStartX = 90;
-      const starW = 26;
-      const starGap = 6;
-
-      for (let s = 1; s <= 5; s++) {
-        const sx = starStartX + (s - 1) * (starW + starGap);
-        const isFilled = s <= starsValue;
-        starsG.roundRect(sx, y + 2, starW, 14, 4)
-          .fill({ color: isFilled ? COLORS.accent : 0xE0D8CE })
-          .stroke({ color: isFilled ? 0xCC6000 : 0xC0B8AE, width: 1 });
+    PENS_ROSTER.forEach((_, i) => {
+      const isCur = i === activeIdx;
+      const dot = new Graphics();
+      if (isCur) {
+        dot.roundRect(startX + i * dotGap - 6, -3, 14, 6, 3).fill({ color: 0xEA580C });
+      } else {
+        dot.circle(startX + i * dotGap, 0, 3).fill({ color: 0xD6CDBA });
       }
-
-      sc.addChild(starsG);
+      this.dotsContainer.addChild(dot);
     });
   }
 }

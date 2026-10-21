@@ -1,10 +1,10 @@
-import { PenFightEngine, PenBody, SHRINK_TURNS, MAX_PULL_PX, CANCEL_PULL_PX } from '../physics/PenFightEngine';
+import { PenFightEngine, PenBody, SHRINK_TURNS, CANCEL_PULL_PX } from '../physics/PenFightEngine';
+import { renderPenToCanvas } from './RealPenRenderer';
 
 export class ArenaRenderer {
-  /**
-   * Renders the entire Desk Wars arena, pens, floating labels, starburst rings,
-   * thermometer aiming UI, and "Your turn" center toast
-   */
+  private static cachedDeskCanvas: HTMLCanvasElement | null = null;
+  private static cachedDeskKey = '';
+
   public static renderArena(
     ctx: CanvasRenderingContext2D,
     canvasW: number,
@@ -15,25 +15,48 @@ export class ArenaRenderer {
   ): void {
     ctx.clearRect(0, 0, canvasW, canvasH);
 
-    // 1. Draw Full-Bleed Wooden School Desk
+    ctx.save();
+    if (engine.screenShake > 0.25) {
+      const sx = (Math.random() - 0.5) * engine.screenShake;
+      const sy = (Math.random() - 0.5) * engine.screenShake;
+      ctx.translate(sx, sy);
+    }
+
     this.drawSchoolDesk(ctx, canvasW, canvasH, engine, deskStyle);
 
-    // 2. Draw Floating "You" / "Computer" Labels under stopped pens
+    for (const sp of engine.sparks) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, sp.alpha);
+      ctx.fillStyle = sp.color;
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, sp.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
     for (const pen of engine.pens) {
       this.drawFloatingPenLabel(ctx, pen, engine);
     }
 
-    // 3. Draw Both Pens (8-layer Real 3D or Classic Vector)
     for (const pen of engine.pens) {
-      this.drawPen(ctx, pen, penLook);
+      if (pen.fallenOut) continue;
+      renderPenToCanvas(
+        ctx,
+        pen.spec,
+        pen.x,
+        pen.y,
+        pen.angle,
+        penLook,
+        pen.fallScale,
+        pen.fallAlpha,
+        pen.level
+      );
     }
 
-    // 4. Draw 8-Spike Starburst Collision Rings on impact
     for (const ring of engine.impactRings) {
       this.drawStarburstImpactRing(ctx, ring.x, ring.y, ring.ageMs / ring.durationMs, ring.maxRadius);
     }
 
-    // 5. Draw Thermometer Power Gauge + White Contact Dot + Forward Push Arrow + Curved Spin Arc
     if (engine.aim.active && (engine.phase === 'AIMING' || engine.phase === 'AI_PULLING')) {
       const activePen = engine.pens[engine.aim.penIndex];
       if (activePen) {
@@ -41,10 +64,115 @@ export class ArenaRenderer {
       }
     }
 
-    // 6. Draw Center "Your turn" / "Player 2's turn" Tactile Toast Card
+    ctx.restore();
+
     if (engine.turnToastTimerMs > 0 && engine.phase === 'AIMING') {
-      this.drawCenterTurnToast(ctx, canvasW, canvasH, engine.turnToastText, engine.turnToastTimerMs / 850);
+      this.drawCenterTurnToast(ctx, canvasW, canvasH, engine.turnToastText, engine.turnToastTimerMs / 950);
     }
+  }
+
+  private static getOrBuildDeskTexture(w: number, h: number, deskStyle: 'clean' | 'old'): HTMLCanvasElement {
+    const key = `${Math.round(w)}x${Math.round(h)}_${deskStyle}`;
+    if (this.cachedDeskCanvas && this.cachedDeskKey === key) {
+      return this.cachedDeskCanvas;
+    }
+
+    const off = document.createElement('canvas');
+    off.width = Math.max(1, Math.round(w));
+    off.height = Math.max(1, Math.round(h));
+    const c = off.getContext('2d')!;
+
+    const woodGrad = c.createLinearGradient(0, 0, w, 0);
+    if (deskStyle === 'clean') {
+      woodGrad.addColorStop(0, '#d8b48e');
+      woodGrad.addColorStop(0.25, '#cfa77e');
+      woodGrad.addColorStop(0.5, '#d9b58f');
+      woodGrad.addColorStop(0.75, '#cca379');
+      woodGrad.addColorStop(1, '#d5af88');
+    } else {
+      woodGrad.addColorStop(0, '#b88f68');
+      woodGrad.addColorStop(0.35, '#a87e56');
+      woodGrad.addColorStop(0.7, '#9c724b');
+      woodGrad.addColorStop(1, '#ae845c');
+    }
+    c.fillStyle = woodGrad;
+    c.fillRect(0, 0, w, h);
+
+    const plankCount = 5;
+    const plankW = w / plankCount;
+    for (let p = 1; p < plankCount; p++) {
+      const px = Math.round(p * plankW);
+      c.fillStyle = 'rgba(65, 38, 15, 0.16)';
+      c.fillRect(px, 0, 1.5, h);
+      c.fillStyle = 'rgba(255, 240, 215, 0.12)';
+      c.fillRect(px + 1.5, 0, 2, h);
+    }
+
+    c.strokeStyle = deskStyle === 'clean' ? 'rgba(115, 76, 42, 0.13)' : 'rgba(68, 40, 18, 0.22)';
+    c.lineWidth = 1.2;
+    for (let gx = 8; gx < w; gx += 11) {
+      c.beginPath();
+      c.moveTo(gx, 0);
+      c.bezierCurveTo(
+        gx + Math.sin(gx * 0.07) * 5,
+        h * 0.33,
+        gx - Math.cos(gx * 0.06) * 5,
+        h * 0.66,
+        gx + Math.sin(gx * 0.05) * 2,
+        h
+      );
+      c.stroke();
+    }
+
+    c.fillStyle = 'rgba(65, 38, 16, 0.26)';
+    c.beginPath();
+    c.roundRect(w * 0.22, 16, w * 0.56, 6, 3);
+    c.fill();
+    c.fillStyle = 'rgba(255, 255, 255, 0.16)';
+    c.fillRect(w * 0.23, 21, w * 0.54, 1.2);
+
+    if (deskStyle === 'old') {
+      c.save();
+      c.strokeStyle = 'rgba(58, 34, 14, 0.34)';
+      c.lineWidth = 1.4;
+
+      const cx = w * 0.78;
+      const cy = h * 0.24;
+      c.beginPath();
+      c.arc(cx, cy, 24, 0, Math.PI * 2);
+      c.stroke();
+      c.beginPath();
+      c.arc(cx, cy, 11, 0, Math.PI * 2);
+      c.stroke();
+
+      const tx = w * 0.20;
+      const ty = h * 0.76;
+      c.beginPath();
+      c.moveTo(tx - 16, ty - 6); c.lineTo(tx + 16, ty - 6);
+      c.moveTo(tx - 16, ty + 6); c.lineTo(tx + 16, ty + 6);
+      c.moveTo(tx - 6, ty - 16); c.lineTo(tx - 6, ty + 16);
+      c.moveTo(tx + 6, ty - 16); c.lineTo(tx + 6, ty + 16);
+      c.stroke();
+
+      c.fillStyle = 'rgba(29, 78, 216, 0.14)';
+      c.beginPath();
+      c.arc(w * 0.25, h * 0.28, 13, 0, Math.PI * 2);
+      c.fill();
+      c.beginPath();
+      c.arc(w * 0.28, h * 0.30, 6, 0, Math.PI * 2);
+      c.fill();
+      c.restore();
+    }
+
+    const vig = c.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.72);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(38, 20, 6, 0.18)');
+    c.fillStyle = vig;
+    c.fillRect(0, 0, w, h);
+
+    this.cachedDeskCanvas = off;
+    this.cachedDeskKey = key;
+    return off;
   }
 
   private static drawSchoolDesk(
@@ -54,71 +182,35 @@ export class ArenaRenderer {
     engine: PenFightEngine,
     deskStyle: 'clean' | 'old'
   ): void {
-    // Classroom background
-    ctx.fillStyle = '#3e2723';
+    ctx.fillStyle = '#f5f2e9';
     ctx.fillRect(0, 0, canvasW, canvasH);
 
     const d = engine.outerDesk;
 
     ctx.save();
-    // Outer desk dark wood frame
-    ctx.fillStyle = '#6d4c3d';
+    ctx.fillStyle = '#5c3a21';
     ctx.strokeStyle = '#2b302a';
     ctx.lineWidth = 3.5;
     ctx.beginPath();
-    ctx.roundRect(d.x - 6, d.y - 6, d.w + 12, d.h + 12, 22);
+    ctx.roundRect(d.x - 6, d.y - 5, d.w + 12, d.h + 14, 22);
     ctx.fill();
     ctx.stroke();
 
-    // Main vertical oak wood grain gradient
-    const woodGrad = ctx.createLinearGradient(d.x, d.y, d.x + d.w, d.y);
-    if (deskStyle === 'clean') {
-      woodGrad.addColorStop(0, '#d8b48e');
-      woodGrad.addColorStop(0.25, '#cfa77e');
-      woodGrad.addColorStop(0.5, '#d9b58f');
-      woodGrad.addColorStop(0.75, '#cca379');
-      woodGrad.addColorStop(1, '#d5af88');
-    } else {
-      woodGrad.addColorStop(0, '#b88f68');
-      woodGrad.addColorStop(0.5, '#a87e56');
-      woodGrad.addColorStop(1, '#9c724b');
-    }
-
-    ctx.fillStyle = woodGrad;
     ctx.beginPath();
     ctx.roundRect(d.x, d.y, d.w, d.h, 16);
-    ctx.fill();
     ctx.clip();
 
-    // Subtle vertical wood grain fibers (matches vertical grain in mobile video!)
-    ctx.strokeStyle = deskStyle === 'clean' ? 'rgba(120, 82, 48, 0.13)' : 'rgba(72, 44, 22, 0.24)';
-    ctx.lineWidth = 1.2;
-    const grainStep = 14;
-    for (let gx = d.x + 10; gx < d.x + d.w; gx += grainStep) {
-      ctx.beginPath();
-      ctx.moveTo(gx, d.y);
-      ctx.bezierCurveTo(
-        gx + Math.sin(gx * 0.05) * 4,
-        d.y + d.h * 0.33,
-        gx - Math.cos(gx * 0.05) * 4,
-        d.y + d.h * 0.66,
-        gx,
-        d.y + d.h
-      );
-      ctx.stroke();
-    }
+    const woodTex = this.getOrBuildDeskTexture(d.w, d.h, deskStyle);
+    ctx.drawImage(woodTex, d.x, d.y, d.w, d.h);
 
-    // If desk has shrunk (Turn > 15), darken the out-of-bounds margin outside activeBounds
     if (engine.shrinkSteps > 0) {
       const b = engine.activeBounds;
-      ctx.fillStyle = 'rgba(28, 19, 14, 0.34)';
-      // Top, bottom, left, right darkened margins
+      ctx.fillStyle = 'rgba(28, 19, 14, 0.36)';
       ctx.fillRect(d.x, d.y, d.w, b.y - d.y);
       ctx.fillRect(d.x, b.y + b.h, d.w, d.y + d.h - (b.y + b.h));
       ctx.fillRect(d.x, b.y, b.x - d.x, b.h);
       ctx.fillRect(b.x + b.w, b.y, d.x + d.w - (b.x + b.w), b.h);
 
-      // Inner dashed boundary line ("Desk smaller · stay inside the line")
       ctx.strokeStyle = '#9a3412';
       ctx.lineWidth = 2.5;
       ctx.setLineDash([9, 7]);
@@ -128,7 +220,6 @@ export class ArenaRenderer {
       ctx.setLineDash([]);
     }
 
-    // Next-turn shrink warning red pulsing border on turns 15, 19, 23, 27
     if (SHRINK_TURNS.includes(engine.turnCount) && engine.phase !== 'ROUND_OVER') {
       const nextRatio = Math.min(0.32, (engine.shrinkSteps + 1) * 0.07);
       const inX = (d.w * nextRatio) / 2;
@@ -147,9 +238,6 @@ export class ArenaRenderer {
     ctx.restore();
   }
 
-  /**
-   * Renders the floating "You" (orange) and "Computer" (blue) labels directly below each pen
-   */
   private static drawFloatingPenLabel(
     ctx: CanvasRenderingContext2D,
     pen: PenBody,
@@ -157,14 +245,14 @@ export class ArenaRenderer {
   ): void {
     if (pen.falling || pen.fallenOut) return;
     const speed = Math.hypot(pen.vx, pen.vy);
-    if (speed > 40) return; // Hide label while pen is moving fast
+    if (speed > 40) return;
 
     const isCurrentTurn = pen.playerIndex === engine.activePlayer;
     ctx.save();
     ctx.font = '800 13px Nunito, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = isCurrentTurn ? pen.labelColor : 'rgba(92, 75, 60, 0.72)';
+    ctx.fillStyle = isCurrentTurn ? pen.labelColor : 'rgba(92, 75, 60, 0.75)';
 
     const labelY = pen.y + 38;
     const text = isCurrentTurn && pen.playerIndex === 1 ? `▸ ${pen.label}` : pen.label;
@@ -172,9 +260,6 @@ export class ArenaRenderer {
     ctx.restore();
   }
 
-  /**
-   * Renders the 8-spike dark starburst ring at collision points (exact match to 00:16, 00:20, 00:53 in video)
-   */
   private static drawStarburstImpactRing(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -188,21 +273,19 @@ export class ArenaRenderer {
 
     ctx.save();
     ctx.translate(x, y);
-    ctx.globalAlpha = alpha * 0.85;
+    ctx.globalAlpha = alpha * 0.88;
     ctx.strokeStyle = '#2b302a';
-    ctx.lineWidth = 2.2;
+    ctx.lineWidth = 2.4;
 
-    // Central circle
     ctx.beginPath();
     ctx.arc(0, 0, radius, 0, Math.PI * 2);
     ctx.stroke();
 
-    // 8 radiating impact spikes
     const spikes = 8;
     for (let i = 0; i < spikes; i++) {
       const ang = (i * Math.PI * 2) / spikes + 0.2;
       const innerR = radius * 0.85;
-      const outerR = radius * 1.48;
+      const outerR = radius * 1.5;
       ctx.beginPath();
       ctx.moveTo(Math.cos(ang) * innerR, Math.sin(ang) * innerR);
       ctx.lineTo(Math.cos(ang) * outerR, Math.sin(ang) * outerR);
@@ -211,10 +294,6 @@ export class ArenaRenderer {
     ctx.restore();
   }
 
-  /**
-   * Renders the exact Thermometer Power Bar + White Contact Dot + Forward Push Arrow + Curved Spin Arc (`↻`/`↺`)
-   * seen in reference videos
-   */
   private static drawThermometerAimGauge(
     ctx: CanvasRenderingContext2D,
     pen: PenBody,
@@ -230,7 +309,6 @@ export class ArenaRenderer {
       const pullAng = Math.atan2(pullY, pullX);
       const launchAng = pullAng + Math.PI;
 
-      // Dynamic color from green -> yellow -> orange -> red
       const gaugeColor =
         powerRatio < 0.35
           ? '#65a30d'
@@ -240,15 +318,11 @@ export class ArenaRenderer {
           ? '#f97316'
           : '#dc2626';
 
-      // =====================================================================
-      // A. FORWARD LAUNCH ARROW (extends in front of the white contact dot)
-      // =====================================================================
       const arrowLen = 26 + powerRatio * 48;
       ctx.save();
       ctx.translate(contact.x, contact.y);
       ctx.rotate(launchAng);
 
-      // Arrow shaft with dark outline
       ctx.strokeStyle = '#2b302a';
       ctx.lineWidth = 8;
       ctx.lineCap = 'round';
@@ -264,7 +338,6 @@ export class ArenaRenderer {
       ctx.lineTo(arrowLen, 0);
       ctx.stroke();
 
-      // Arrowhead triangle
       ctx.fillStyle = gaugeColor;
       ctx.strokeStyle = '#2b302a';
       ctx.lineWidth = 2.2;
@@ -277,15 +350,11 @@ export class ArenaRenderer {
       ctx.stroke();
       ctx.restore();
 
-      // =====================================================================
-      // B. CURVED SPIN INDICATOR ARROW (`↻` / `↺`) around the contact dot
-      // =====================================================================
       const halfL = pen.lengthPx * 0.44;
       const rx = Math.cos(pen.angle) * (grabOffsetRatio * halfL);
       const ry = Math.sin(pen.angle) * (grabOffsetRatio * halfL);
       const fx = Math.cos(launchAng);
       const fy = Math.sin(launchAng);
-      // Normalized cross product (r × F) determines spin direction and magnitude
       const normalizedTorque = (rx * fy - ry * fx) / (halfL || 1);
 
       if (Math.abs(normalizedTorque) > 0.14) {
@@ -310,7 +379,6 @@ export class ArenaRenderer {
         ctx.arc(0, 0, arcRadius, startA, endA, spinDir < 0);
         ctx.stroke();
 
-        // Tiny arrowhead at the end of the curved spin arc
         const tipX = Math.cos(endA) * arcRadius;
         const tipY = Math.sin(endA) * arcRadius;
         const tangentAng = endA + (spinDir > 0 ? Math.PI / 2 : -Math.PI / 2);
@@ -329,9 +397,6 @@ export class ArenaRenderer {
         ctx.restore();
       }
 
-      // =====================================================================
-      // C. SEGMENTED THERMOMETER POWER BAR (extends behind the contact dot)
-      // =====================================================================
       const tubeMaxLen = 104;
       const tubeWidth = 13;
       const fillLen = Math.max(8, powerRatio * tubeMaxLen);
@@ -340,8 +405,7 @@ export class ArenaRenderer {
       ctx.translate(contact.x, contact.y);
       ctx.rotate(pullAng);
 
-      // Outer white capsule frame with dark border
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
       ctx.strokeStyle = '#2b302a';
       ctx.lineWidth = 2.4;
       ctx.beginPath();
@@ -349,7 +413,6 @@ export class ArenaRenderer {
       ctx.fill();
       ctx.stroke();
 
-      // Inner colored power fill
       ctx.save();
       ctx.beginPath();
       ctx.roundRect(14, -tubeWidth / 2 + 2, tubeMaxLen - 4, tubeWidth - 4, (tubeWidth - 4) / 2);
@@ -358,7 +421,6 @@ export class ArenaRenderer {
       ctx.fillStyle = gaugeColor;
       ctx.fillRect(14, -tubeWidth / 2, fillLen, tubeWidth);
 
-      // 3 segment divider ticks inside the thermometer (25%, 50%, 75%)
       ctx.strokeStyle = 'rgba(43, 48, 42, 0.45)';
       ctx.lineWidth = 1.5;
       for (const frac of [0.25, 0.5, 0.75]) {
@@ -372,9 +434,6 @@ export class ArenaRenderer {
       ctx.restore();
     }
 
-    // =====================================================================
-    // D. WHITE CONTACT DOT ON THE PEN BARREL (always visible while grabbing)
-    // =====================================================================
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = '#2b302a';
     ctx.lineWidth = 2.8;
@@ -386,109 +445,6 @@ export class ArenaRenderer {
     ctx.restore();
   }
 
-  /**
-   * Renders the photorealistic 8-layer Real pen or Classic cartoon pen
-   */
-  private static drawPen(
-    ctx: CanvasRenderingContext2D,
-    pen: PenBody,
-    mode: 'real' | 'classic'
-  ): void {
-    if (pen.fallenOut) return;
-
-    const L = pen.lengthPx;
-    const W = pen.widthPx;
-    const halfL = L / 2;
-    const halfW = W / 2;
-
-    ctx.save();
-    ctx.globalAlpha = pen.fallAlpha;
-
-    // World-space soft drop shadow on the wooden desk
-    if (mode === 'real' && !pen.falling) {
-      ctx.save();
-      ctx.translate(pen.x + 3, pen.y + 6);
-      ctx.rotate(pen.angle);
-      ctx.fillStyle = 'rgba(20, 14, 10, 0.32)';
-      ctx.beginPath();
-      ctx.roundRect(-halfL, -halfW, L, W, halfW);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    ctx.translate(pen.x, pen.y);
-    ctx.scale(pen.fallScale, pen.fallScale);
-    ctx.rotate(pen.angle);
-
-    // 1. Main Barrel
-    ctx.fillStyle = pen.spec.transparent ? 'rgba(226, 232, 240, 0.65)' : pen.spec.colors.barrel;
-    ctx.beginPath();
-    ctx.roundRect(-halfL * 0.82, -halfW, L * 0.82, W, 4);
-    ctx.fill();
-
-    // 2. Visible inner ink refill tube for translucent pens (Cheap Ballpoint & Gel Pen)
-    if (pen.spec.transparent) {
-      ctx.fillStyle = pen.spec.colors.ink;
-      ctx.fillRect(-halfL * 0.62, -2.2, L * 0.68, 4.4);
-    }
-
-    // 3. Rubber Grip Zone near front
-    ctx.fillStyle = pen.spec.colors.grip;
-    ctx.fillRect(halfL * 0.22, -halfW, L * 0.24, W);
-
-    // 4. Tapered Nose Cone & Ballpoint Nib (+X end)
-    ctx.fillStyle = pen.spec.colors.tip;
-    ctx.beginPath();
-    ctx.moveTo(halfL * 0.64, -halfW);
-    ctx.lineTo(halfL, -2.0);
-    ctx.lineTo(halfL, 2.0);
-    ctx.lineTo(halfL * 0.64, halfW);
-    ctx.closePath();
-    ctx.fill();
-
-    // 5. Back Cap (-X end) & Pocket Clip
-    ctx.fillStyle = pen.spec.colors.cap;
-    ctx.beginPath();
-    ctx.roundRect(-halfL, -halfW - 1.2, L * 0.3, W + 2.4, 4);
-    ctx.fill();
-
-    ctx.fillStyle = pen.spec.colors.clip;
-    ctx.beginPath();
-    ctx.roundRect(-halfL + 5, -halfW - 3.6, L * 0.22, 2.6, 1.5);
-    ctx.fill();
-
-    // 6. Cylindrical 3D Specular Highlight (Real Mode) vs Bold Ink Outline (Classic Mode)
-    if (mode === 'real') {
-      const cyl = ctx.createLinearGradient(0, -halfW, 0, halfW);
-      cyl.addColorStop(0, 'rgba(255, 255, 255, 0.42)');
-      cyl.addColorStop(0.28, 'rgba(255, 255, 255, 0.62)');
-      cyl.addColorStop(0.55, 'rgba(255, 255, 255, 0.0)');
-      cyl.addColorStop(0.85, 'rgba(0, 0, 0, 0.24)');
-      cyl.addColorStop(1, 'rgba(0, 0, 0, 0.42)');
-      ctx.fillStyle = cyl;
-      ctx.beginPath();
-      ctx.roundRect(-halfL, -halfW, L * 0.86, W, 4);
-      ctx.fill();
-
-      ctx.strokeStyle = 'rgba(43, 48, 42, 0.55)';
-      ctx.lineWidth = 1.1;
-      ctx.beginPath();
-      ctx.roundRect(-halfL, -halfW, L * 0.86, W, 4);
-      ctx.stroke();
-    } else {
-      ctx.strokeStyle = '#2b302a';
-      ctx.lineWidth = 2.6;
-      ctx.beginPath();
-      ctx.roundRect(-halfL, -halfW, L * 0.86, W, 4);
-      ctx.stroke();
-    }
-
-    ctx.restore();
-  }
-
-  /**
-   * Renders the tactile center toast card ("Your turn" / "Player 2's turn") seen in the reference videos
-   */
   private static drawCenterTurnToast(
     ctx: CanvasRenderingContext2D,
     canvasW: number,
@@ -504,16 +460,14 @@ export class ArenaRenderer {
     ctx.globalAlpha = alpha;
     ctx.translate(canvasW / 2, canvasH / 2 - 18);
 
-    const w = 156;
+    const w = 160;
     const h = 44;
 
-    // Hard tactile neo-brutalist bottom shadow
     ctx.fillStyle = '#2b302a';
     ctx.beginPath();
     ctx.roundRect(-w / 2, -h / 2 + 4, w, h, 12);
     ctx.fill();
 
-    // Card surface
     ctx.fillStyle = cardBg;
     ctx.strokeStyle = '#2b302a';
     ctx.lineWidth = 2.8;

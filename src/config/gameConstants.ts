@@ -66,17 +66,36 @@ export const DEFAULT_MATCH_FORMAT: MatchFormat = 'first_to_3';
 // ─── Pen Placement (initial spawn Y offset from desk center) ─────
 export const PEN_SPAWN_OFFSET_Y = 120; // px from center
 
-// ─── Colors ──────────────────────────────────────────────────────
+// ─── Colors (Playful Skeuomorphic School Desk Palette) ───────────
 export const COLORS = {
+  // Wood & Desk
   woodLight: 0xD7995B,
   woodMid: 0xB87A3D,
   woodDark: 0x8B5A2B,
-  cream: 0xF6EFE6,
-  textDark: 0x2C3539,
-  accent: 0xFF7A00,
-  danger: 0xE63946,
+  deskRim: 0x6E4724,
+  deskEdge: 0x6E4724,
+
+  // Tactile Neo-Brutalist School Palette
+  butterYellow: 0xFAD24B,
+  butterYellowHover: 0xFCD75E,
+  navyBorder: 0x232B38,
+  navyShadow: 0x161D27,
+  cardCream: 0xFFFDF5,
+  cardCreamMuted: 0xF5EFE3,
+
+  // Player & Badge Accents
+  skyBlue: 0x9EC5E8,
+  mintGreen: 0xA7CC8D,
+  peachOrange: 0xF8A170,
+  danger: 0xEF4444,
   victory: 0x2A9D8F,
+
+  // Text & Neutrals
+  textDark: 0x232B38,
+  textNavy: 0x232B38,
+  textMuted: 0x7A7265,
   white: 0xFFFFFF,
   black: 0x000000,
-  deskEdge: 0x6B4226,
+  cream: 0xF6EFE6,
+  accent: 0xFAD24B, // Butter yellow is the signature primary accent
 } as const;

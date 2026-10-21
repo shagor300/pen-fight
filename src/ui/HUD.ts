@@ -1,10 +1,11 @@
 /**
  * HUD.ts
- * In-game Heads Up Display: Scoreboard, turn indicator, countdown bar,
- * desk shrink alert, and top action buttons.
+ * Skeuomorphic In-Game Top Header matching shunneklabs.app reference (ref_gameplay_t15s.png).
+ * Floating cream scoreboard pill with colored circular score badges, square cream pause button,
+ * and floating status pill ("○ Your turn" / "○ Computer's turn").
  */
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
-import { COLORS, COUNTDOWN_SECONDS, MAX_TURNS_PER_ROUND } from '../config/gameConstants';
+import { COLORS, MAX_TURNS_PER_ROUND } from '../config/gameConstants';
 import { getTopStatusPillText } from './TopHudUpdater';
 import EventEmitter from 'eventemitter3';
 
@@ -13,28 +14,28 @@ export class HUD extends EventEmitter {
   private screenWidth: number;
   private screenHeight: number;
 
-  // Header Elements
-  private topCard: Graphics;
-  private scoreText: Text;
-  private p1Label: Text;
-  private p2Label: Text;
-  private turnPill: Graphics;
-  private turnText: Text;
-  private turnCounterText: Text;
+  // Score Pill Components (Top Left)
+  private scorePillContainer: Container;
+  private scorePillBg: Graphics;
+  private scoreContent: Container;
 
-  // Inactivity Timer
-  private timerContainer: Container;
-  private timerBar: Graphics;
-  private timerText: Text;
-
-  // Warning Banner
-  private warningBanner: Container;
-  private warningText: Text;
-
-  // Action Buttons
+  // Action Buttons (Top Right)
   private pauseButton: Container;
   private soundButton: Container;
   private soundMuted = false;
+
+  // Status Pill (Center Below Top Bar)
+  private statusPillContainer: Container;
+  private statusPillBg: Graphics;
+  private statusPillText: Text;
+
+  // Bottom Turn Counter
+  private turnCounterText: Text;
+
+  // Inactivity Countdown Timer
+  private timerContainer: Container;
+  private timerBar: Graphics;
+  private timerText: Text;
 
   constructor(screenWidth: number, screenHeight: number) {
     super();
@@ -43,62 +44,49 @@ export class HUD extends EventEmitter {
 
     this.container = new Container();
 
-    // ── Top Score Card ──────────────────────────────────────────────
-    this.topCard = new Graphics();
-    this.container.addChild(this.topCard);
+    // ── 1. Top-Left Scoreboard Pill ──────────────────────────────────
+    this.scorePillContainer = new Container();
+    this.scorePillBg = new Graphics();
+    this.scoreContent = new Container();
+    this.scorePillContainer.addChild(this.scorePillBg);
+    this.scorePillContainer.addChild(this.scoreContent);
+    this.container.addChild(this.scorePillContainer);
 
-    const labelStyle = new TextStyle({
-      fontFamily: 'Fredoka, sans-serif',
-      fontSize: 14,
-      fill: COLORS.cream,
-      letterSpacing: 1,
-    });
+    // ── 2. Top-Right Pause Button ────────────────────────────────────
+    this.pauseButton = this.createPauseButton();
+    this.container.addChild(this.pauseButton);
 
-    this.p1Label = new Text({ text: 'P1: PLAYER', style: labelStyle });
-    this.p1Label.anchor.set(0, 0.5);
-    this.container.addChild(this.p1Label);
+    this.soundButton = this.createSoundButton();
+    this.container.addChild(this.soundButton);
 
-    this.p2Label = new Text({ text: 'P2: BOT (NORMAL)', style: labelStyle });
-    this.p2Label.anchor.set(1, 0.5);
-    this.container.addChild(this.p2Label);
+    // ── 3. Center Status Pill ────────────────────────────────────────
+    this.statusPillContainer = new Container();
+    this.statusPillBg = new Graphics();
+    this.statusPillContainer.addChild(this.statusPillBg);
 
-    const scoreStyle = new TextStyle({
-      fontFamily: 'Fredoka, sans-serif',
-      fontSize: 30,
-      fill: COLORS.white,
-      stroke: { color: COLORS.textDark, width: 4 },
-      letterSpacing: 2,
-    });
-    this.scoreText = new Text({ text: '0 – 0', style: scoreStyle });
-    this.scoreText.anchor.set(0.5, 0.5);
-    this.container.addChild(this.scoreText);
-
-    // ── Turn Pill Indicator ─────────────────────────────────────────
-    this.turnPill = new Graphics();
-    this.container.addChild(this.turnPill);
-
-    const turnStyle = new TextStyle({
-      fontFamily: 'Nunito, sans-serif',
+    const statusStyle = new TextStyle({
+      fontFamily: 'Fredoka, Nunito, sans-serif',
       fontSize: 13,
+      fill: COLORS.textDark,
       fontWeight: 'bold',
-      fill: COLORS.white,
     });
-    this.turnText = new Text({ text: "PLAYER 1'S TURN", style: turnStyle });
-    this.turnText.anchor.set(0.5, 0.5);
-    this.container.addChild(this.turnText);
+    this.statusPillText = new Text({ text: '○ Your turn', style: statusStyle });
+    this.statusPillText.anchor.set(0.5, 0.5);
+    this.statusPillContainer.addChild(this.statusPillText);
+    this.container.addChild(this.statusPillContainer);
 
-    // ── Turn Counter (bottom center) ────────────────────────────────
+    // ── 4. Bottom Turn Counter ───────────────────────────────────────
     const counterStyle = new TextStyle({
       fontFamily: 'Nunito, sans-serif',
-      fontSize: 13,
-      fill: COLORS.cream,
-      stroke: { color: COLORS.textDark, width: 2 },
+      fontSize: 12,
+      fill: COLORS.textMuted,
+      fontWeight: 'bold',
     });
-    this.turnCounterText = new Text({ text: `Turn 1 / ${MAX_TURNS_PER_ROUND}`, style: counterStyle });
+    this.turnCounterText = new Text({ text: 'Turn 1 / 30', style: counterStyle });
     this.turnCounterText.anchor.set(0.5, 1);
     this.container.addChild(this.turnCounterText);
 
-    // ── Inactivity Countdown Timer ──────────────────────────────────
+    // ── 5. Inactivity Countdown Timer ────────────────────────────────
     this.timerContainer = new Container();
     this.timerContainer.visible = false;
     this.container.addChild(this.timerContainer);
@@ -108,190 +96,292 @@ export class HUD extends EventEmitter {
 
     const timerStyle = new TextStyle({
       fontFamily: 'Fredoka, sans-serif',
-      fontSize: 14,
+      fontSize: 13,
       fill: COLORS.danger,
+      fontWeight: 'bold',
     });
     this.timerText = new Text({ text: '20s', style: timerStyle });
     this.timerText.anchor.set(0.5, 0.5);
     this.timerContainer.addChild(this.timerText);
 
-    // ── Desk Shrink Warning Banner ──────────────────────────────────
-    this.warningBanner = new Container();
-    this.warningBanner.visible = false;
-    this.container.addChild(this.warningBanner);
-
-    const bannerBg = new Graphics()
-      .roundRect(-160, -16, 320, 32, 8)
-      .fill({ color: COLORS.danger, alpha: 0.9 })
-      .stroke({ color: COLORS.white, width: 1.5 });
-    this.warningBanner.addChild(bannerBg);
-
-    const warningStyle = new TextStyle({
-      fontFamily: 'Fredoka, sans-serif',
-      fontSize: 13,
-      fill: COLORS.white,
-      fontWeight: 'bold',
-    });
-    this.warningText = new Text({ text: '⚠️ DESK SHRINKS NEXT TURN!', style: warningStyle });
-    this.warningText.anchor.set(0.5, 0.5);
-    this.warningBanner.addChild(this.warningText);
-
-    // ── Action Buttons ──────────────────────────────────────────────
-    this.pauseButton = this.createIconButton('⏸', 14, () => this.emit('pause_click'));
-    this.container.addChild(this.pauseButton);
-
-    this.soundButton = this.createIconButton('🔊', 14, () => {
-      this.soundMuted = !this.soundMuted;
-      this.updateSoundButton();
-      this.emit('sound_toggle', !this.soundMuted);
-    });
-    this.container.addChild(this.soundButton);
-
     this.layout();
-  }
-
-  private createIconButton(symbol: string, size: number, onClick: () => void): Container {
-    const btn = new Container();
-    const bg = new Graphics()
-      .circle(0, 0, 18)
-      .fill({ color: 0x1A1A1A, alpha: 0.6 })
-      .stroke({ color: COLORS.cream, width: 1, alpha: 0.4 });
-    btn.addChild(bg);
-
-    const txt = new Text({
-      text: symbol,
-      style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
-        fontSize: size,
-        fill: COLORS.white,
-      }),
-    });
-    txt.anchor.set(0.5, 0.5);
-    btn.addChild(txt);
-
-    btn.eventMode = 'static';
-    btn.cursor = 'pointer';
-    btn.on('pointerdown', (e) => {
-      e.stopPropagation();
-      onClick();
-    });
-
-    return btn;
-  }
-
-  private updateSoundButton(): void {
-    const txt = this.soundButton.children[1] as Text;
-    if (txt) {
-      txt.text = this.soundMuted ? '🔇' : '🔊';
-    }
   }
 
   public layout(screenWidth = this.screenWidth, screenHeight = this.screenHeight): void {
     this.screenWidth = screenWidth;
     this.screenHeight = screenHeight;
 
-    const cardWidth = Math.min(screenWidth - 30, 480);
-    const cardHeight = 52;
-    const cardX = (screenWidth - cardWidth) / 2;
-    const cardY = 10;
+    const topY = Math.max(16, screenHeight * 0.025);
 
-    // Background card
-    this.topCard.clear()
-      .roundRect(cardX, cardY, cardWidth, cardHeight, 14)
-      .fill({ color: 0x221811, alpha: 0.85 })
-      .stroke({ color: COLORS.woodMid, width: 1.5, alpha: 0.6 });
+    // Score pill positioned on top left
+    this.scorePillContainer.x = 20;
+    this.scorePillContainer.y = topY;
 
-    // Labels & Score
-    this.p1Label.x = cardX + 20;
-    this.p1Label.y = cardY + cardHeight / 2;
+    // Pause button on top right
+    this.pauseButton.x = screenWidth - 20;
+    this.pauseButton.y = topY;
 
-    this.p2Label.x = cardX + cardWidth - 20;
-    this.p2Label.y = cardY + cardHeight / 2;
+    this.soundButton.x = screenWidth - 72;
+    this.soundButton.y = topY;
 
-    this.scoreText.x = screenWidth / 2;
-    this.scoreText.y = cardY + cardHeight / 2;
-
-    // Turn pill
-    this.turnPill.x = screenWidth / 2;
-    this.turnPill.y = cardY + cardHeight + 16;
-    this.turnText.x = this.turnPill.x;
-    this.turnText.y = this.turnPill.y;
-
-    // Action buttons
-    this.pauseButton.x = 28;
-    this.pauseButton.y = cardY + cardHeight / 2;
-
-    this.soundButton.x = screenWidth - 28;
-    this.soundButton.y = cardY + cardHeight / 2;
+    // Status pill centered below top bar
+    this.statusPillContainer.x = screenWidth / 2;
+    this.statusPillContainer.y = topY + 44;
 
     // Bottom counter
     this.turnCounterText.x = screenWidth / 2;
-    this.turnCounterText.y = screenHeight - 10;
+    this.turnCounterText.y = screenHeight - 12;
 
-    // Warning banner
-    this.warningBanner.x = screenWidth / 2;
-    this.warningBanner.y = cardY + cardHeight + 52;
-
-    // Inactivity timer
+    // Timer
     this.timerContainer.x = screenWidth / 2;
-    this.timerContainer.y = cardY + cardHeight + 40;
+    this.timerContainer.y = topY + 82;
   }
 
-  /** Update scoreboard and active player */
-  public updateScore(
-    scores: [number, number],
-    currentPlayer: 0 | 1,
-    p1Name: string,
-    p2Name: string,
-    isAI: boolean,
-  ): void {
-    this.scoreText.text = `${scores[0]} – ${scores[1]}`;
-    this.p1Label.text = `P1: ${p1Name.toUpperCase()}`;
-    this.p2Label.text = isAI ? `BOT: ${p2Name.toUpperCase()}` : `P2: ${p2Name.toUpperCase()}`;
+  private createPauseButton(): Container {
+    const btn = new Container();
+    btn.eventMode = 'static';
+    btn.cursor = 'pointer';
 
-    const activeColor = currentPlayer === 0 ? COLORS.accent : 0x3A86FF;
-    const activeText = currentPlayer === 0
-      ? `▶ ${p1Name.toUpperCase()}'S TURN`
-      : isAI
-      ? `⏳ BOT IS AIMING...`
-      : `▶ ${p2Name.toUpperCase()}'S TURN`;
+    const s = 40;
+    const r = 12;
 
-    this.turnText.text = activeText;
+    const shadow = new Graphics()
+      .roundRect(-s, 3, s, s, r)
+      .fill({ color: COLORS.navyShadow });
+    btn.addChild(shadow);
 
-    const pillW = Math.max(160, this.turnText.width + 28);
-    this.turnPill.clear()
-      .roundRect(-pillW / 2, -12, pillW, 24, 12)
-      .fill({ color: activeColor, alpha: 0.9 })
-      .stroke({ color: COLORS.white, width: 1, alpha: 0.5 });
+    const surface = new Graphics()
+      .roundRect(-s, 0, s, s, r)
+      .fill({ color: COLORS.cardCream })
+      .stroke({ color: COLORS.navyBorder, width: 2.5 });
+    btn.addChild(surface);
+
+    // Double Pause Bars ⏸
+    const barW = 4;
+    const barH = 14;
+    const barR = 2;
+    const iconG = new Graphics()
+      .roundRect(-s / 2 - barW - 2, (s - barH) / 2, barW, barH, barR)
+      .fill({ color: COLORS.textDark })
+      .roundRect(-s / 2 + 2, (s - barH) / 2, barW, barH, barR)
+      .fill({ color: COLORS.textDark });
+    surface.addChild(iconG);
+
+    btn.on('pointerdown', () => { surface.y = 2; });
+    btn.on('pointerup', () => {
+      surface.y = 0;
+      this.emit('pause_click');
+    });
+    btn.on('pointerupoutside', () => { surface.y = 0; });
+
+    return btn;
+  }
+
+  private createSoundButton(): Container {
+    const btn = new Container();
+    btn.eventMode = 'static';
+    btn.cursor = 'pointer';
+
+    const s = 40;
+    const r = 12;
+
+    const shadow = new Graphics()
+      .roundRect(-s, 3, s, s, r)
+      .fill({ color: COLORS.navyShadow });
+    btn.addChild(shadow);
+
+    const surface = new Graphics()
+      .roundRect(-s, 0, s, s, r)
+      .fill({ color: COLORS.cardCream })
+      .stroke({ color: COLORS.navyBorder, width: 2.5 });
+    btn.addChild(surface);
+
+    const icon = new Text({
+      text: '🔊',
+      style: new TextStyle({ fontSize: 18 })
+    });
+    icon.anchor.set(0.5, 0.5);
+    icon.x = -s / 2;
+    icon.y = s / 2;
+    surface.addChild(icon);
+
+    btn.on('pointerdown', () => { surface.y = 2; });
+    btn.on('pointerup', () => {
+      surface.y = 0;
+      this.soundMuted = !this.soundMuted;
+      icon.text = this.soundMuted ? '🔇' : '🔊';
+      this.emit('sound_toggle', !this.soundMuted);
+    });
+    btn.on('pointerupoutside', () => { surface.y = 0; });
+
+    return btn;
   }
 
   /**
-   * Updates HUD using TopHudUpdater from blueprint:
-   * Left: "You 0 · Computer 1"
-   * Center Pill: "● Your turn" / "● Computer · Thinking" / "● 5 normal turns left"
+   * Update HUD from simulation engine and current scores.
+   * Renders the authentic top-left pill:
+   * "You [0 (peach)] · Computer [0 (blue)]"
    */
-  public updateFromEngine(engine: import('../physics/PenFightEngine').PenFightEngine, mode: 'ai' | '2p', scores: [number, number]): void {
+  public updateFromEngine(
+    engine: import('../physics/PenFightEngine').PenFightEngine,
+    mode: 'ai' | '2p',
+    scores: [number, number]
+  ): void {
     const isAI = mode === 'ai';
-    const leftText = isAI ? `You ${scores[0]} · Computer ${scores[1]}` : `P1 ${scores[0]} · P2 ${scores[1]}`;
-    this.p1Label.text = leftText;
-    this.p2Label.text = ''; // Clear to prevent any overlap!
-    this.scoreText.text = ''; // Clear center text so only the clean pill is visible
+    const p1Name = 'You';
+    const p2Name = isAI ? 'Computer' : 'Player 2';
 
+    // 1. Rebuild Score Pill Content
+    this.scoreContent.removeChildren();
+
+    const pillH = 38;
+    const r = 9999;
+
+    let curX = 14;
+
+    // "You" text
+    const p1Txt = new Text({
+      text: p1Name,
+      style: new TextStyle({
+        fontFamily: 'Fredoka, sans-serif',
+        fontSize: 13,
+        fill: COLORS.textDark,
+        fontWeight: 'bold',
+      })
+    });
+    p1Txt.anchor.set(0, 0.5);
+    p1Txt.x = curX;
+    p1Txt.y = pillH / 2;
+    this.scoreContent.addChild(p1Txt);
+    curX += p1Txt.width + 8;
+
+    // P1 Score Circle Badge (Peach)
+    const badgeR = 11;
+    const p1Badge = new Graphics()
+      .circle(curX + badgeR, pillH / 2, badgeR)
+      .fill({ color: COLORS.peachOrange })
+      .stroke({ color: COLORS.navyBorder, width: 1.5 });
+    this.scoreContent.addChild(p1Badge);
+
+    const p1Score = new Text({
+      text: `${scores[0]}`,
+      style: new TextStyle({
+        fontFamily: 'Fredoka, sans-serif',
+        fontSize: 12,
+        fill: COLORS.textDark,
+        fontWeight: 'bold',
+      })
+    });
+    p1Score.anchor.set(0.5, 0.5);
+    p1Score.x = curX + badgeR;
+    p1Score.y = pillH / 2;
+    this.scoreContent.addChild(p1Score);
+    curX += badgeR * 2 + 10;
+
+    // Middle Dot ·
+    const dotTxt = new Text({
+      text: '·',
+      style: new TextStyle({
+        fontFamily: 'Fredoka, sans-serif',
+        fontSize: 18,
+        fill: COLORS.textMuted,
+        fontWeight: 'bold',
+      })
+    });
+    dotTxt.anchor.set(0, 0.5);
+    dotTxt.x = curX;
+    dotTxt.y = pillH / 2 - 1;
+    this.scoreContent.addChild(dotTxt);
+    curX += dotTxt.width + 10;
+
+    // "Computer" text
+    const p2Txt = new Text({
+      text: p2Name,
+      style: new TextStyle({
+        fontFamily: 'Fredoka, sans-serif',
+        fontSize: 13,
+        fill: COLORS.textDark,
+        fontWeight: 'bold',
+      })
+    });
+    p2Txt.anchor.set(0, 0.5);
+    p2Txt.x = curX;
+    p2Txt.y = pillH / 2;
+    this.scoreContent.addChild(p2Txt);
+    curX += p2Txt.width + 8;
+
+    // P2 Score Circle Badge (Sky Blue)
+    const p2Badge = new Graphics()
+      .circle(curX + badgeR, pillH / 2, badgeR)
+      .fill({ color: COLORS.skyBlue })
+      .stroke({ color: COLORS.navyBorder, width: 1.5 });
+    this.scoreContent.addChild(p2Badge);
+
+    const p2Score = new Text({
+      text: `${scores[1]}`,
+      style: new TextStyle({
+        fontFamily: 'Fredoka, sans-serif',
+        fontSize: 12,
+        fill: COLORS.textDark,
+        fontWeight: 'bold',
+      })
+    });
+    p2Score.anchor.set(0.5, 0.5);
+    p2Score.x = curX + badgeR;
+    p2Score.y = pillH / 2;
+    this.scoreContent.addChild(p2Score);
+    curX += badgeR * 2 + 14;
+
+    const totalPillW = curX;
+
+    // Render Pill Background & Shadow
+    this.scorePillBg.clear();
+    this.scorePillBg
+      .roundRect(0, 3, totalPillW, pillH, r)
+      .fill({ color: COLORS.navyShadow });
+    this.scorePillBg
+      .roundRect(0, 0, totalPillW, pillH, r)
+      .fill({ color: COLORS.cardCream })
+      .stroke({ color: COLORS.navyBorder, width: 2.5 });
+
+    // 2. Update Status Pill
     const pillInfo = getTopStatusPillText(engine, mode);
-    this.turnText.text = `● ${pillInfo.text}`;
+    this.statusPillText.text = pillInfo.text;
 
-    let parsedColor = 0xF3CD57;
+    let parsedColor: number = COLORS.textDark;
     if (pillInfo.dotColor.startsWith('#')) {
       parsedColor = parseInt(pillInfo.dotColor.replace('#', '0x'), 16);
     }
 
-    const pillW = Math.max(170, this.turnText.width + 26);
-    this.turnPill.clear()
-      .roundRect(-pillW / 2, -13, pillW, 26, 13)
-      .fill({ color: 0x221811, alpha: 0.92 })
-      .stroke({ color: parsedColor, width: 2 });
+    const textW = this.statusPillText.width;
+    const statW = Math.max(140, textW + 54);
+    const statH = 34;
 
-    (this.turnText.style as TextStyle).fill = parsedColor;
+    this.statusPillBg.clear();
+    // 3D Shadow
+    this.statusPillBg
+      .roundRect(-statW / 2, 3, statW, statH, 9999)
+      .fill({ color: COLORS.navyShadow });
+    // Surface
+    this.statusPillBg
+      .roundRect(-statW / 2, 0, statW, statH, 9999)
+      .fill({ color: COLORS.cardCream })
+      .stroke({ color: COLORS.navyBorder, width: 2.2 });
+
+    // Status Ring Indicator (matches ring in ref_gameplay_t15s.png)
+    const ringX = -statW / 2 + 20;
+    const ringY = statH / 2;
+    this.statusPillBg
+      .circle(ringX, ringY, 7)
+      .stroke({ color: COLORS.navyBorder, width: 2.5 })
+      .circle(ringX, ringY, 3.5)
+      .fill({ color: parsedColor });
+
+    this.statusPillText.x = 10;
+    this.statusPillText.y = statH / 2;
+    (this.statusPillText.style as TextStyle).fill = COLORS.textDark;
+    (this.statusPillText.style as TextStyle).fontSize = 13;
+
     this.setTurnCount(engine.turnCount, 30);
   }
 
@@ -300,7 +390,7 @@ export class HUD extends EventEmitter {
   }
 
   public showWarning(show: boolean): void {
-    this.warningBanner.visible = show;
+    // Handled in status pill
   }
 
   public updateCountdown(remainingSec: number, ratio: number): void {
@@ -310,16 +400,17 @@ export class HUD extends EventEmitter {
     }
     this.timerContainer.visible = true;
 
-    const barW = 200;
-    const barH = 6;
+    const barW = 180;
+    const barH = 8;
     this.timerBar.clear()
-      .roundRect(-barW / 2, -barH / 2, barW, barH, 3)
-      .fill({ color: 0x333333, alpha: 0.5 });
+      .roundRect(-barW / 2, -barH / 2, barW, barH, 4)
+      .fill({ color: 0xD1D5DB });
 
-    const fillColor = ratio > 0.4 ? COLORS.accent : COLORS.danger;
+    const fillColor = ratio > 0.4 ? COLORS.butterYellow : COLORS.danger;
     this.timerBar
-      .roundRect(-barW / 2, -barH / 2, barW * Math.max(0, ratio), barH, 3)
-      .fill({ color: fillColor });
+      .roundRect(-barW / 2, -barH / 2, barW * Math.max(0, ratio), barH, 4)
+      .fill({ color: fillColor })
+      .stroke({ color: COLORS.navyBorder, width: 1.5 });
 
     this.timerText.x = barW / 2 + 18;
     this.timerText.y = 0;
