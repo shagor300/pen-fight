@@ -18,6 +18,7 @@ import { MainMenu } from '../ui/MainMenu';
 import { WhoIsPlayingModal } from '../ui/WhoIsPlayingModal';
 import { PenSelectorModal } from '../ui/PenSelectorModal';
 import { StatsModal } from '../ui/StatsModal';
+import { LeaderboardModal } from '../ui/LeaderboardModal';
 import { HowToPlayModal } from '../ui/HowToPlayModal';
 import { MatchResultModal } from '../ui/MatchResultModal';
 import { PauseModal } from '../ui/PauseModal';
@@ -71,6 +72,7 @@ export class GameManager extends EventEmitter {
   private penModal: PenSelectorModal;
   private settingsModal: SettingsModal;
   private statsModal: StatsModal;
+  private leaderboardModal: LeaderboardModal;
   private howToPlayModal: HowToPlayModal;
   private matchResultModal: MatchResultModal;
   private pauseModal: PauseModal;
@@ -159,7 +161,7 @@ export class GameManager extends EventEmitter {
     });
     this.mainMenu.on('open_leaderboard', () => {
       soundManager.play('ui_click');
-      this.statsModal.show();
+      this.leaderboardModal.show();
     });
     this.mainMenu.on('open_settings', () => {
       soundManager.play('ui_click');
@@ -224,6 +226,9 @@ export class GameManager extends EventEmitter {
 
     this.statsModal = new StatsModal(app.screen.width, app.screen.height, this.progressionManager);
     this.modalLayer.addChild(this.statsModal.container);
+
+    this.leaderboardModal = new LeaderboardModal(app.screen.width, app.screen.height, this.progressionManager);
+    this.modalLayer.addChild(this.leaderboardModal.container);
 
     this.howToPlayModal = new HowToPlayModal(app.screen.width, app.screen.height);
     this.modalLayer.addChild(this.howToPlayModal.container);
@@ -348,6 +353,7 @@ export class GameManager extends EventEmitter {
     this.whoModal.hide();
     this.penModal.hide();
     this.statsModal.hide();
+    this.leaderboardModal.hide();
     this.howToPlayModal.hide();
     this.settingsModal.hide();
     this.matchResultModal.hide();
@@ -545,6 +551,7 @@ export class GameManager extends EventEmitter {
     this.penModal.layout(w, h);
     this.settingsModal.layout(w, h);
     this.statsModal.layout(w, h);
+    this.leaderboardModal.layout(w, h);
     this.howToPlayModal.layout(w, h);
     this.matchResultModal.layout(w, h);
     this.pauseModal.layout(w, h);

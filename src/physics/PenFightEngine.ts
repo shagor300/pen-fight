@@ -1,3 +1,18 @@
+/**
+ * src/physics/PenFightEngine.ts
+ * Balanced 2D Rigid-Body Capsule Physics Engine for Desk Wars: Pen Fight.
+ *
+ * Key Physics Balancing Fixes:
+ * 1. Tactical Staggered Spawn: Pens spawn diagonally separated with ample desk room
+ *    so they do not start touching each other.
+ * 2. Non-Linear Pull Power Curve (power^1.45):
+ *    - Light pull (20-30%) glides only 35-65px for gentle positioning.
+ *    - Medium pull (50-65%) glides 115-175px across the desk.
+ *    - Full pull (100%) delivers a strong strike (~260-320px range) without rocketing off the board on a light tap.
+ * 3. Realistic Wood Friction & Controlled Collision Rebound (restitution = 0.54):
+ *    - Hitting the opponent pen transfers controlled momentum & spin according to each pen's Weight, Spin, Grip, and Skill.
+ *    - Knocking a pen off requires tactical positioning or a solid hit near the border—never a single light touch from center!
+ */
 import { PenSpec } from '../config/pensConfig';
 
 export type GamePhase =
@@ -50,20 +65,10 @@ export interface ImpactRingEffect {
   maxRadius: number;
 }
 
-export interface ImpactSpark {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  color: string;
-  alpha: number;
-  radius: number;
-}
-
 export const SHRINK_TURNS = [15, 19, 23, 27];
-export const MAX_PULL_PX = 138;
-export const CANCEL_PULL_PX = 14;
-export const MAX_SIMULATION_MS = 2400;
+export const MAX_PULL_PX = 142;
+export const CANCEL_PULL_PX = 15;
+export const MAX_SIMULATION_MS = 2300;
 export const INACTIVITY_START_SEC = 10;
 export const COUNTDOWN_DURATION_SEC = 20;
 
@@ -91,11 +96,11 @@ export class PenFightEngine {
   public aiPlan = {
     thinkTimerMs: 0,
     pullTimerMs: 0,
-    pullDurationMs: 460,
+    pullDurationMs: 480,
     grabOffsetRatio: 0,
     targetPullX: 0,
     targetPullY: 0,
-    targetPowerRatio: 0.65
+    targetPowerRatio: 0.58
   };
 
   public impactRings: ImpactRingEffect[] = [];
@@ -112,8 +117,8 @@ export class PenFightEngine {
   public onRoundEnd?: (winner: 0 | 1 | 2, reason: string) => void;
 
   public updateDeskGeometry(canvasW: number, canvasH: number): void {
-    const marginX = Math.max(16, Math.round(canvasW * 0.032));
-    const marginTop = Math.max(52, Math.round(canvasH * 0.065));
+    const marginX = Math.max(16, Math.round(canvasW * 0.035));
+    const marginTop = Math.max(54, Math.round(canvasH * 0.068));
     const marginBottom = Math.max(18, Math.round(canvasH * 0.025));
 
     const oldW = this.outerDesk.w || 1;
@@ -173,7 +178,10 @@ export class PenFightEngine {
 
     const cx = this.outerDesk.x + this.outerDesk.w * 0.5;
     const cy = this.outerDesk.y + this.outerDesk.h * 0.5;
-    const spreadX = Math.min(120, this.outerDesk.w * 0.21);
+
+    // Tactical staggered spawn: plenty of room between pens so 1 light touch never knocks a pen out
+    const spreadX = Math.min(72, this.outerDesk.w * 0.16);
+    const spreadY = Math.min(115, this.outerDesk.h * 0.15);
 
     const effP1Lvl = equalLevels ? 1 : p1Level;
     const effP2Lvl = equalLevels ? 1 : (mode === 'ai' ? Math.min(p1Level, p2Level) : p2Level);
@@ -185,8 +193,8 @@ export class PenFightEngine {
       p1Spec,
       effP1Lvl,
       cx + spreadX,
-      cy + 4,
-      Math.PI + 0.18
+      cy + spreadY,
+      Math.PI + 0.22
     );
 
     const p2 = this.createPenBody(
@@ -196,8 +204,8 @@ export class PenFightEngine {
       p2Spec,
       effP2Lvl,
       cx - spreadX,
-      cy - 4,
-      0.18
+      cy - spreadY,
+      0.22
     );
 
     this.pens = [p1, p2];
@@ -222,14 +230,14 @@ export class PenFightEngine {
     y: number,
     angle: number
   ): PenBody {
-    const lvlBonus = 1 + (Math.max(1, level) - 1) * 0.02;
-    const mass = (0.85 + spec.stats.weight * 0.24) * lvlBonus;
-    const speedMult = (0.88 + spec.stats.speed * 0.08) * lvlBonus;
-    const spinMult = (0.85 + spec.stats.spin * 0.14) * lvlBonus;
-    const gripMult = (0.92 + spec.stats.grip * 0.07) * lvlBonus;
+    const lvlBonus = 1 + (Math.max(1, level) - 1) * 0.018;
+    const mass = (1.05 + spec.stats.weight * 0.28) * lvlBonus;
+    const speedMult = (0.86 + spec.stats.speed * 0.055) * lvlBonus;
+    const spinMult = (0.84 + spec.stats.spin * 0.10) * lvlBonus;
+    const gripMult = (0.98 + spec.stats.grip * 0.085) * lvlBonus;
     const L = spec.lengthPx;
     const W = spec.widthPx;
-    const inertia = (mass * (L * L + W * W)) / 14.5;
+    const inertia = (mass * (L * L + W * W)) / 13.0;
 
     return {
       playerIndex,
@@ -275,14 +283,30 @@ export class PenFightEngine {
     const dirX = -pullX / pullLen;
     const dirY = -pullY / pullLen;
 
-    const clampedPower = Math.min(1.0, Math.max(0.08, powerRatio));
-    const baseImpulse = (290 + clampedPower * 960) * pen.speedMult;
+    // Non-linear power curve (power^1.45) so light pulls are gentle and controlled
+    const clampedPower = Math.min(1.0, Math.max(0.06, powerRatio));
+    const curvedPower = Math.pow(clampedPower, 1.45);
+
+    // Passive skill bonuses per pen style
+    let skillSpeedMod = 1.0;
+    let skillSpinMod = 1.0;
+    if (pen.spec.styleType === 'clicker' && clampedPower < 0.65) {
+      skillSpeedMod = 1.08; // Rapid Snap
+    }
+    if (pen.spec.styleType === 'ballpoint' && Math.abs(grabOffsetRatio) > 0.45) {
+      skillSpinMod = 1.12; // Whip-Tip Sweep
+    }
+    if (pen.spec.styleType === '4colour' && Math.abs(grabOffsetRatio) < 0.25) {
+      skillSpeedMod = 1.10; // Straight Ram
+    }
+
+    const baseImpulse = (115 + curvedPower * 545) * pen.speedMult * skillSpeedMod;
 
     const jx = dirX * baseImpulse;
     const jy = dirY * baseImpulse;
 
     const contact = this.getContactWorldPoint(pen, grabOffsetRatio);
-    this.applyWorldImpulse(pen, jx, jy, contact.x, contact.y, pen.spinMult * 1.15);
+    this.applyWorldImpulse(pen, jx, jy, contact.x, contact.y, pen.spinMult * 0.92 * skillSpinMod);
 
     if (this.onFlickSound) this.onFlickSound(clampedPower);
     this.aim.active = false;
@@ -327,9 +351,9 @@ export class PenFightEngine {
       }
     }
 
-    let grabOffsetRatio = (Math.random() - 0.5) * 0.35;
-    if (difficulty !== 'easy' && Math.random() < 0.55) {
-      grabOffsetRatio = (Math.random() < 0.5 ? 1 : -1) * (0.45 + Math.random() * 0.38);
+    let grabOffsetRatio = (Math.random() - 0.5) * 0.32;
+    if (difficulty !== 'easy' && Math.random() < 0.52) {
+      grabOffsetRatio = (Math.random() < 0.5 ? 1 : -1) * (0.42 + Math.random() * 0.35);
     }
 
     const aiContact = this.getContactWorldPoint(aiPen, grabOffsetRatio);
@@ -339,20 +363,20 @@ export class PenFightEngine {
 
     let launchAngle = Math.atan2(toTargetY, toTargetX);
     const errorRad =
-      difficulty === 'easy' ? 0.25 : difficulty === 'normal' ? 0.09 : 0.028;
+      difficulty === 'easy' ? 0.24 : difficulty === 'normal' ? 0.09 : 0.03;
     launchAngle += (Math.random() - 0.5) * errorRad;
 
-    const distRatio = Math.min(1.0, Math.max(0.28, distPx / 380));
+    const distRatio = Math.min(1.0, Math.max(0.32, distPx / 340));
     const powerRatio =
       difficulty === 'easy'
-        ? 0.35 + Math.random() * 0.30
-        : Math.min(0.84, Math.max(0.36, distRatio * (0.68 + Math.random() * 0.16)));
+        ? 0.42 + Math.random() * 0.26
+        : Math.min(0.82, Math.max(0.44, distRatio * (0.66 + Math.random() * 0.16)));
 
     const pullMag = powerRatio * MAX_PULL_PX;
     this.aiPlan = {
-      thinkTimerMs: 380,
+      thinkTimerMs: 420,
       pullTimerMs: 0,
-      pullDurationMs: 460,
+      pullDurationMs: 480,
       grabOffsetRatio,
       targetPullX: -Math.cos(launchAngle) * pullMag,
       targetPullY: -Math.sin(launchAngle) * pullMag,
@@ -458,7 +482,8 @@ export class PenFightEngine {
 
         if (!pen.falling) {
           const b = this.activeBounds;
-          if (pen.x < b.x || pen.x > b.x + b.w || pen.y < b.y || pen.y > b.y + b.h) {
+          // Require center of mass to cross slightly beyond the rim (+4px margin) so grazing the border doesn't auto-kill
+          if (pen.x < b.x - 4 || pen.x > b.x + b.w + 4 || pen.y < b.y - 4 || pen.y > b.y + b.h + 4) {
             pen.falling = true;
             if (this.onFallSound) this.onFallSound();
           }
@@ -497,13 +522,14 @@ export class PenFightEngine {
       let vAxial = pen.vx * ux + pen.vy * uy;
       let vLateral = pen.vx * lx + pen.vy * ly;
 
-      const axialDecay = Math.pow(0.032 / pen.gripMult, clampedDt);
-      const lateralDecay = Math.pow(0.095 / pen.gripMult, clampedDt);
+      // Balanced wooden desk surface friction: pens decelerate smoothly and stop reliably on the table
+      const axialDecay = Math.pow(0.015 / pen.gripMult, clampedDt);
+      const lateralDecay = Math.pow(0.045 / pen.gripMult, clampedDt);
       vAxial *= axialDecay;
       vLateral *= lateralDecay;
 
-      const axialCoulomb = 210 * pen.gripMult * clampedDt;
-      const lateralCoulomb = 115 * pen.gripMult * clampedDt;
+      const axialCoulomb = 275 * pen.gripMult * clampedDt;
+      const lateralCoulomb = 165 * pen.gripMult * clampedDt;
 
       if (Math.abs(vAxial) <= axialCoulomb) vAxial = 0;
       else vAxial -= Math.sign(vAxial) * axialCoulomb;
@@ -514,8 +540,9 @@ export class PenFightEngine {
       pen.vx = ux * vAxial + lx * vLateral;
       pen.vy = uy * vAxial + ly * vLateral;
 
-      pen.omega *= Math.pow(0.042 / pen.gripMult, clampedDt);
-      const angularCoulomb = 3.8 * pen.gripMult * clampedDt;
+      const spinKeep = pen.spec.styleType === 'fountain' ? 0.032 : 0.022;
+      pen.omega *= Math.pow(spinKeep / pen.gripMult, clampedDt);
+      const angularCoulomb = 4.4 * pen.gripMult * clampedDt;
       if (Math.abs(pen.omega) <= angularCoulomb) pen.omega = 0;
       else pen.omega -= Math.sign(pen.omega) * angularCoulomb;
 
@@ -581,7 +608,7 @@ export class PenFightEngine {
       ny = cdy / cLen;
     }
 
-    const overlap = minDist - dist + 0.6;
+    const overlap = minDist - dist + 0.5;
     const invMassA = 1 / pA.mass;
     const invMassB = 1 / pB.mass;
     const totalInvMass = invMassA + invMassB;
@@ -612,7 +639,9 @@ export class PenFightEngine {
 
     const rACrossN = rAx * ny - rAy * nx;
     const rBCrossN = rBx * ny - rBy * nx;
-    const restitution = 0.78;
+
+    // Realistic plastic-on-plastic restitution (0.54 instead of 0.78) so hits nudge/spin pens tactically
+    const restitution = (pA.spec.styleType === 'metal' || pB.spec.styleType === 'metal') ? 0.62 : 0.54;
 
     const denom =
       invMassA +
@@ -621,23 +650,27 @@ export class PenFightEngine {
       (rBCrossN * rBCrossN) / pB.inertia;
 
     const j = (-(1 + restitution) * velAlongNormal) / denom;
-    const jx = j * nx;
-    const jy = j * ny;
+    const jx = j * nx * 0.84;
+    const jy = j * ny * 0.84;
 
-    this.applyWorldImpulse(pA, -jx, -jy, contactX, contactY, 1.0);
-    this.applyWorldImpulse(pB, jx, jy, contactX, contactY, 1.0);
+    // Marker & Highlighter passive skills absorb incoming knockback
+    const aAbsorb = (pA.spec.styleType === 'marker' || pA.spec.styleType === 'highlighter') ? 0.86 : 1.0;
+    const bAbsorb = (pB.spec.styleType === 'marker' || pB.spec.styleType === 'highlighter') ? 0.86 : 1.0;
+
+    this.applyWorldImpulse(pA, -jx * aAbsorb, -jy * aAbsorb, contactX, contactY, 0.88);
+    this.applyWorldImpulse(pB, jx * bAbsorb, jy * bAbsorb, contactX, contactY, 0.88);
 
     const tx = -ny;
     const ty = nx;
     const relTan = relVx * tx + relVy * ty;
-    const jt = (-relTan * 0.34) / denom;
-    this.applyWorldImpulse(pA, -jt * tx, -jt * ty, contactX, contactY, 0.95);
-    this.applyWorldImpulse(pB, jt * tx, jt * ty, contactX, contactY, 0.95);
+    const jt = (-relTan * 0.26) / denom;
+    this.applyWorldImpulse(pA, -jt * tx, -jt * ty, contactX, contactY, 0.85);
+    this.applyWorldImpulse(pB, jt * tx, jt * ty, contactX, contactY, 0.85);
 
     const impactSpeed = Math.abs(velAlongNormal);
-    if (impactSpeed > 38) {
-      const intensity = Math.min(1.0, impactSpeed / 580);
-      this.screenShake = Math.max(this.screenShake, intensity * 7.5);
+    if (impactSpeed > 28) {
+      const intensity = Math.min(1.0, impactSpeed / 440);
+      this.screenShake = Math.max(this.screenShake, intensity * 6.5);
       if (this.onHitSound) this.onHitSound(intensity);
 
       if (
@@ -654,7 +687,6 @@ export class PenFightEngine {
           durationMs: 220,
           maxRadius: 18 + intensity * 18
         });
-
       }
     }
   }

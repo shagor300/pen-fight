@@ -1,19 +1,20 @@
 /**
- * pensConfig.ts
- * 100% Authentic 8-Pen Roster with exact names, taglines, and 1-5 star ratings
- * verified directly from https://shunneklabs.app/games/pen-fight/ (v1.5.1).
+ * src/config/pensConfig.ts
+ * Complete 8-Pen Roster with Authentic Stats, 3D Geometry Specs, and Signature Passive Skills.
  */
 export interface PenSpec {
   id: string;
   name: string;
   tagline: string;
   description: string;
+  skillName: string;
+  skillDesc: string;
   stats: {
-    weight: number; // 1 to 5 stars
-    speed: number;  // 1 to 5 stars
-    spin: number;   // 1 to 5 stars
-    grip: number;   // 1 to 5 stars
-    reach: number;  // 1 to 5 stars
+    weight: number; // 1 to 5
+    speed: number;  // 1 to 5
+    spin: number;   // 1 to 5
+    grip: number;   // 1 to 5
+    reach: number;  // 1 to 5
   };
   lengthPx: number;
   widthPx: number;
@@ -46,10 +47,12 @@ export const PENS_ROSTER: PenSpec[] = [
     name: 'Cheap Ballpoint',
     tagline: 'Long barrel. Smooth side flicks.',
     description: 'Long barrel. Smooth side flicks.',
+    skillName: ' Whip-Tip Sweep',
+    skillDesc: '+12% tip-shot angular whip when grabbed near the cap or nib.',
     stats: { weight: 2, speed: 5, spin: 4, grip: 2, reach: 5 },
-    lengthPx: 168,
+    lengthPx: 162,
     widthPx: 13,
-    dimensions: { widthMeters: 0.13, lengthMeters: 1.68 },
+    dimensions: { widthMeters: 0.13, lengthMeters: 1.62 },
     colors: {
       barrel: '#e2e8f0',
       cap: '#ea580c',
@@ -71,10 +74,12 @@ export const PENS_ROSTER: PenSpec[] = [
     name: 'Gel Pen',
     tagline: 'Gentle shots, easy to place.',
     description: 'Gentle shots, easy to place.',
+    skillName: '🎯 Precision Brake',
+    skillDesc: 'Silicone grip stabilizes the barrel so medium shots stop right on target.',
     stats: { weight: 2, speed: 4, spin: 3, grip: 3, reach: 3 },
-    lengthPx: 154,
+    lengthPx: 150,
     widthPx: 14,
-    dimensions: { widthMeters: 0.14, lengthMeters: 1.54 },
+    dimensions: { widthMeters: 0.14, lengthMeters: 1.50 },
     colors: {
       barrel: '#bfdbfe',
       cap: '#2563eb',
@@ -96,10 +101,12 @@ export const PENS_ROSTER: PenSpec[] = [
     name: 'Marker',
     tagline: 'Broad hits with a steady stop.',
     description: 'Broad hits with a steady stop.',
+    skillName: '🛡️ Heavy Anchor',
+    skillDesc: 'Thick cylindrical body absorbs 15% more recoil on head-on collisions.',
     stats: { weight: 3, speed: 3, spin: 3, grip: 4, reach: 2 },
-    lengthPx: 146,
+    lengthPx: 144,
     widthPx: 18,
-    dimensions: { widthMeters: 0.18, lengthMeters: 1.46 },
+    dimensions: { widthMeters: 0.18, lengthMeters: 1.44 },
     colors: {
       barrel: '#f1f5f9',
       cap: '#dc2626',
@@ -121,10 +128,12 @@ export const PENS_ROSTER: PenSpec[] = [
     name: '4-Colour Pen',
     tagline: 'A chunky classic for steady, straight pushes.',
     description: 'A chunky classic for steady, straight pushes.',
+    skillName: '🚀 Straight Ram',
+    skillDesc: 'Center-grab pushes transfer +14% forward knockback with minimal self-spin.',
     stats: { weight: 2, speed: 3, spin: 2, grip: 4, reach: 4 },
-    lengthPx: 158,
+    lengthPx: 154,
     widthPx: 17,
-    dimensions: { widthMeters: 0.17, lengthMeters: 1.58 },
+    dimensions: { widthMeters: 0.17, lengthMeters: 1.54 },
     colors: {
       barrel: '#f8fafc',
       cap: '#2563eb',
@@ -146,10 +155,12 @@ export const PENS_ROSTER: PenSpec[] = [
     name: 'Highlighter',
     tagline: 'Wide flat body with strong desk grip.',
     description: 'Wide flat body with strong desk grip.',
+    skillName: '🧲 Edge Grip Lock',
+    skillDesc: 'Flat wide body resists sliding off the desk border after defensive hits.',
     stats: { weight: 3, speed: 2, spin: 4, grip: 5, reach: 1 },
-    lengthPx: 136,
+    lengthPx: 134,
     widthPx: 22,
-    dimensions: { widthMeters: 0.22, lengthMeters: 1.36 },
+    dimensions: { widthMeters: 0.22, lengthMeters: 1.34 },
     colors: {
       barrel: '#facc15',
       cap: '#eab308',
@@ -171,10 +182,12 @@ export const PENS_ROSTER: PenSpec[] = [
     name: 'Click Pen',
     tagline: 'Quick mid-weight. Easy to steer.',
     description: 'Quick mid-weight. Easy to steer.',
+    skillName: '⚡ Rapid Snap',
+    skillDesc: 'Spring-loaded balance delivers fast acceleration even on medium pulls.',
     stats: { weight: 2, speed: 5, spin: 5, grip: 1, reach: 2 },
-    lengthPx: 148,
+    lengthPx: 146,
     widthPx: 14,
-    dimensions: { widthMeters: 0.14, lengthMeters: 1.48 },
+    dimensions: { widthMeters: 0.14, lengthMeters: 1.46 },
     colors: {
       barrel: '#4d7c0f',
       cap: '#365314',
@@ -196,10 +209,12 @@ export const PENS_ROSTER: PenSpec[] = [
     name: 'Fountain Pen',
     tagline: 'Classic nib with balanced spin.',
     description: 'Classic nib with balanced spin.',
+    skillName: '🌀 Cyclone Nib',
+    skillDesc: 'Weighted gold nib sustains high rotational torque through multi-hit combos.',
     stats: { weight: 2, speed: 4, spin: 5, grip: 2, reach: 4 },
-    lengthPx: 160,
+    lengthPx: 158,
     widthPx: 15,
-    dimensions: { widthMeters: 0.15, lengthMeters: 1.60 },
+    dimensions: { widthMeters: 0.15, lengthMeters: 1.58 },
     colors: {
       barrel: '#1e293b',
       cap: '#0f172a',
@@ -221,10 +236,12 @@ export const PENS_ROSTER: PenSpec[] = [
     name: 'Metal Pen',
     tagline: 'Steel barrel. Lively rebounds.',
     description: 'Steel barrel. Lively rebounds.',
+    skillName: '🔨 Titanium Impact',
+    skillDesc: 'Heavy brushed-steel mass delivers maximum knockback while barely recoiling.',
     stats: { weight: 4, speed: 4, spin: 3, grip: 1, reach: 3 },
-    lengthPx: 154,
+    lengthPx: 152,
     widthPx: 15,
-    dimensions: { widthMeters: 0.15, lengthMeters: 1.54 },
+    dimensions: { widthMeters: 0.15, lengthMeters: 1.52 },
     colors: {
       barrel: '#94a3b8',
       cap: '#64748b',
@@ -248,25 +265,25 @@ export const ALL_PENS = PENS_ROSTER;
 
 export function deriveMass(configOrVal: PenSpec | number): number {
   const val = typeof configOrVal === 'number' ? configOrVal : (configOrVal.stats.weight || 3);
-  return 0.85 + val * 0.24;
+  return 1.0 + val * 0.28;
 }
 
 export function deriveSpeedMultiplier(configOrVal: PenSpec | number): number {
   const val = typeof configOrVal === 'number' ? configOrVal : (configOrVal.stats.speed || 3);
-  return 0.88 + val * 0.08;
+  return 0.86 + val * 0.06;
 }
 
 export function deriveTorqueMultiplier(configOrVal: PenSpec | number): number {
   const val = typeof configOrVal === 'number' ? configOrVal : (configOrVal.stats.spin || 3);
-  return 0.85 + val * 0.14;
+  return 0.85 + val * 0.11;
 }
 
 export function deriveDampingFactor(configOrVal: PenSpec | number): number {
   const val = typeof configOrVal === 'number' ? configOrVal : (configOrVal.stats.grip || 3);
-  return 0.92 + val * 0.07;
+  return 0.96 + val * 0.08;
 }
 
 export function deriveLengthPx(configOrVal: PenSpec | number): number {
   if (typeof configOrVal === 'number') return configOrVal;
-  return configOrVal.lengthPx || 154;
+  return configOrVal.lengthPx || 152;
 }

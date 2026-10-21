@@ -1,12 +1,11 @@
 /**
- * ArenaRenderer.ts
- * 100% Authentic Ultra-HD Retina Playground & Desk Renderer matching https://shunneklabs.app/games/pen-fight/.
- * Features:
- * - Warm cream outer background (#f5edd6)
- * - Dark wooden desk frame with bronze/gold inner trim & 2x-3x Retina supersampled wood grain
- * - Authentic classroom desk carvings & details (left ruler markings, right pencil/eraser,
- *   top-right tic-tac-toe grid, bottom-right carved star, bottom-left SK stamp, lower-middle blue ink blot)
- * - 8-Spike Dark Starburst Impact Ring & Thermometer Slingshot Gauge
+ * src/rendering/ArenaRenderer.ts
+ * Ultra-HD 2x-3x Retina Playground & School Desk Map Renderer.
+ * Supports:
+ * - "Old School Carved" Map ('old'): Rich dark vintage oak with a brass-edged 15cm ruler on the left,
+ *   a two-tone pink/blue rubber eraser & pencil shavings on the right, a taped notebook formula note,
+ *   carved Tic-Tac-Toe grid, carved 5-point star, "SK" emblem stamp, and fountain-pen blue ink stain.
+ * - "Clean Tournament Oak" Map ('clean'): Sleek warm polished oak planks with subtle classroom carvings.
  */
 import { PenFightEngine, PenBody, SHRINK_TURNS, CANCEL_PULL_PX } from '../physics/PenFightEngine';
 import { renderPenToCanvas } from './RealPenRenderer';
@@ -86,7 +85,6 @@ export class ArenaRenderer {
     const c = off.getContext('2d')!;
     c.scale(texScale, texScale);
 
-    // Rich polished school desk wood surface
     const woodGrad = c.createLinearGradient(0, 0, w, 0);
     if (deskStyle === 'clean') {
       woodGrad.addColorStop(0, '#d8b48e');
@@ -95,27 +93,25 @@ export class ArenaRenderer {
       woodGrad.addColorStop(0.75, '#cca379');
       woodGrad.addColorStop(1, '#d5af88');
     } else {
-      woodGrad.addColorStop(0, '#b58960');
-      woodGrad.addColorStop(0.35, '#a47951');
-      woodGrad.addColorStop(0.7, '#986d46');
-      woodGrad.addColorStop(1, '#ab8058');
+      woodGrad.addColorStop(0, '#ae8257');
+      woodGrad.addColorStop(0.35, '#9d7248');
+      woodGrad.addColorStop(0.7, '#91663d');
+      woodGrad.addColorStop(1, '#a47950');
     }
     c.fillStyle = woodGrad;
     c.fillRect(0, 0, w, h);
 
-    // Vertical wood planks & highlights
     const plankCount = 5;
     const plankW = w / plankCount;
     for (let p = 1; p < plankCount; p++) {
       const px = Math.round(p * plankW);
-      c.fillStyle = 'rgba(65, 38, 15, 0.15)';
+      c.fillStyle = 'rgba(65, 38, 15, 0.16)';
       c.fillRect(px, 0, 1.4, h);
       c.fillStyle = 'rgba(255, 244, 222, 0.13)';
       c.fillRect(px + 1.4, 0, 1.8, h);
     }
 
-    // Fine organic wood grain fibers
-    c.strokeStyle = deskStyle === 'clean' ? 'rgba(115, 76, 42, 0.12)' : 'rgba(64, 38, 16, 0.20)';
+    c.strokeStyle = deskStyle === 'clean' ? 'rgba(115, 76, 42, 0.12)' : 'rgba(58, 33, 12, 0.22)';
     c.lineWidth = 1.0;
     for (let gx = 7; gx < w; gx += 10) {
       c.beginPath();
@@ -132,46 +128,46 @@ export class ArenaRenderer {
     }
 
     // Top horizontal pencil groove
-    c.fillStyle = 'rgba(65, 38, 16, 0.24)';
+    c.fillStyle = 'rgba(58, 32, 12, 0.28)';
     c.beginPath();
-    c.roundRect(w * 0.22, 15, w * 0.56, 5.5, 3);
+    c.roundRect(w * 0.22, 15, w * 0.56, 6, 3);
     c.fill();
     c.fillStyle = 'rgba(255, 255, 255, 0.16)';
-    c.fillRect(w * 0.23, 20, w * 0.54, 1.1);
+    c.fillRect(w * 0.23, 20.5, w * 0.54, 1.1);
 
-    // Authentic Classroom Carvings & Doodles (verified from shunneklabs.app/games/pen-fight/)
+    // Classroom Desk Carvings & Props
     c.save();
-    const carveAlpha = deskStyle === 'old' ? 0.34 : 0.16;
-    c.strokeStyle = `rgba(58, 34, 14, ${carveAlpha})`;
-    c.fillStyle = `rgba(58, 34, 14, ${carveAlpha})`;
-    c.lineWidth = 1.35;
+    const carveAlpha = deskStyle === 'old' ? 0.38 : 0.18;
+    c.strokeStyle = `rgba(54, 30, 10, ${carveAlpha})`;
+    c.fillStyle = `rgba(54, 30, 10, ${carveAlpha})`;
+    c.lineWidth = 1.4;
 
     // 1. Top-Right: Carved Tic-Tac-Toe Grid
-    const ttx = w - 68;
-    const tty = 36;
-    const tts = 28;
+    const ttx = w - 66;
+    const tty = 34;
+    const tts = 30;
     c.beginPath();
-    c.moveTo(ttx + 9, tty); c.lineTo(ttx + 9, tty + tts);
-    c.moveTo(ttx + 19, tty); c.lineTo(ttx + 19, tty + tts);
-    c.moveTo(ttx, tty + 9); c.lineTo(ttx + tts, tty + 9);
-    c.moveTo(ttx, tty + 19); c.lineTo(ttx + tts, tty + 19);
+    c.moveTo(ttx + 10, tty); c.lineTo(ttx + 10, tty + tts);
+    c.moveTo(ttx + 20, tty); c.lineTo(ttx + 20, tty + tts);
+    c.moveTo(ttx, tty + 10); c.lineTo(ttx + tts, tty + 10);
+    c.moveTo(ttx, tty + 20); c.lineTo(ttx + tts, tty + 20);
     c.stroke();
     c.beginPath();
-    c.arc(ttx + 14, tty + 14, 3.2, 0, Math.PI * 2);
+    c.arc(ttx + 15, tty + 15, 3.4, 0, Math.PI * 2);
     c.stroke();
     c.beginPath();
-    c.moveTo(ttx + 2, tty + 2); c.lineTo(ttx + 7, tty + 7);
-    c.moveTo(ttx + 7, tty + 2); c.lineTo(ttx + 2, tty + 7);
+    c.moveTo(ttx + 2, tty + 2); c.lineTo(ttx + 8, tty + 8);
+    c.moveTo(ttx + 8, tty + 2); c.lineTo(ttx + 2, tty + 8);
     c.stroke();
 
     // 2. Bottom-Right: Carved 5-Point Star Doodle
-    const stX = w - 48;
-    const stY = h - 48;
+    const stX = w - 46;
+    const stY = h - 46;
     c.beginPath();
     for (let i = 0; i < 5; i++) {
       const a1 = (i * 4 * Math.PI) / 5 - Math.PI / 2;
-      const sx = stX + Math.cos(a1) * 11;
-      const sy = stY + Math.sin(a1) * 11;
+      const sx = stX + Math.cos(a1) * 12;
+      const sy = stY + Math.sin(a1) * 12;
       if (i === 0) c.moveTo(sx, sy);
       else c.lineTo(sx, sy);
     }
@@ -179,7 +175,7 @@ export class ArenaRenderer {
     c.stroke();
 
     // 3. Bottom-Left: "SK" Square Logo Stamp
-    const skX = 22;
+    const skX = 20;
     const skY = h - 46;
     c.beginPath();
     c.roundRect(skX, skY, 24, 24, 4);
@@ -189,45 +185,78 @@ export class ArenaRenderer {
     c.textBaseline = 'middle';
     c.fillText('SK', skX + 12, skY + 12.5);
 
-    // 4. Lower-Middle: Blue Ink Blot Stain
-    c.fillStyle = deskStyle === 'old' ? 'rgba(29, 78, 216, 0.16)' : 'rgba(29, 78, 216, 0.08)';
+    // 4. Lower-Middle: Fountain Pen Blue Ink Stain
+    c.fillStyle = deskStyle === 'old' ? 'rgba(29, 78, 216, 0.20)' : 'rgba(29, 78, 216, 0.09)';
     c.beginPath();
-    c.arc(w * 0.46, h * 0.78, 10, 0, Math.PI * 2);
+    c.arc(w * 0.46, h * 0.77, 10.5, 0, Math.PI * 2);
     c.fill();
     c.beginPath();
-    c.arc(w * 0.46 + 11, h * 0.78 + 5, 4.5, 0, Math.PI * 2);
+    c.arc(w * 0.46 + 11, h * 0.77 + 5, 4.8, 0, Math.PI * 2);
     c.fill();
     c.beginPath();
-    c.arc(w * 0.46 - 9, h * 0.78 - 6, 3.2, 0, Math.PI * 2);
+    c.arc(w * 0.46 - 9, h * 0.77 - 6, 3.5, 0, Math.PI * 2);
     c.fill();
 
-    // 5. Left Edge: Subtle Yellow Ruler Graphic
+    // 5. Rich Old School Desk Map Props (Brass-Edged Ruler, Two-Tone Eraser, Taped Note)
     if (deskStyle === 'old') {
+      // Left: Detailed Wooden/Brass 15cm Ruler
       c.save();
-      c.translate(18, h * 0.46);
-      c.rotate(-Math.PI / 2 + 0.04);
-      c.fillStyle = 'rgba(234, 179, 8, 0.24)';
-      c.strokeStyle = 'rgba(113, 63, 18, 0.30)';
-      c.lineWidth = 1;
+      c.translate(19, h * 0.46);
+      c.rotate(-Math.PI / 2 + 0.03);
+      c.fillStyle = 'rgba(234, 179, 8, 0.42)';
+      c.strokeStyle = 'rgba(92, 52, 16, 0.48)';
+      c.lineWidth = 1.2;
       c.beginPath();
-      c.roundRect(-55, -8, 110, 16, 2);
+      c.roundRect(-66, -10, 132, 20, 3);
       c.fill();
       c.stroke();
-      for (let rx = -48; rx <= 48; rx += 6) {
+      for (let rx = -60; rx <= 60; rx += 5) {
         c.beginPath();
-        c.moveTo(rx, -8);
-        c.lineTo(rx, rx % 12 === 0 ? -2 : -5);
+        c.moveTo(rx, -10);
+        c.lineTo(rx, rx % 15 === 0 ? -2 : -6);
         c.stroke();
       }
+      c.restore();
+
+      // Right: Two-Tone Pink/Blue Rubber Eraser & Pencil Shavings
+      c.save();
+      c.translate(w - 24, h * 0.52);
+      c.rotate(0.28);
+      c.fillStyle = 'rgba(244, 114, 182, 0.48)';
+      c.beginPath();
+      c.roundRect(-12, -7, 15, 14, 2);
+      c.fill();
+      c.fillStyle = 'rgba(59, 130, 246, 0.48)';
+      c.beginPath();
+      c.roundRect(3, -7, 9, 14, 2);
+      c.fill();
+      c.strokeStyle = 'rgba(43, 51, 62, 0.42)';
+      c.lineWidth = 1.1;
+      c.strokeRect(-12, -7, 24, 14);
+      c.restore();
+
+      // Top-Left Corner: Taped Notebook Paper Scrap
+      c.save();
+      c.translate(38, 42);
+      c.rotate(-0.12);
+      c.fillStyle = 'rgba(254, 249, 195, 0.35)';
+      c.strokeStyle = 'rgba(113, 63, 18, 0.28)';
+      c.lineWidth = 1;
+      c.beginPath();
+      c.roundRect(-22, -14, 44, 28, 3);
+      c.fill();
+      c.stroke();
+      c.fillStyle = 'rgba(71, 85, 105, 0.45)';
+      c.font = '700 8px Nunito, sans-serif';
+      c.fillText('F = m·a', 0, 1);
       c.restore();
     }
 
     c.restore();
 
-    // Soft edge vignette
     const vig = c.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.36, w / 2, h / 2, Math.max(w, h) * 0.72);
     vig.addColorStop(0, 'rgba(0,0,0,0)');
-    vig.addColorStop(1, 'rgba(38, 20, 6, 0.16)');
+    vig.addColorStop(1, 'rgba(38, 20, 6, 0.17)');
     c.fillStyle = vig;
     c.fillRect(0, 0, w, h);
 
@@ -243,14 +272,12 @@ export class ArenaRenderer {
     engine: PenFightEngine,
     deskStyle: 'clean' | 'old'
   ): void {
-    // 1. Authentic Warm Cream Outer Background (#f5edd6)
     ctx.fillStyle = '#f5edd6';
     ctx.fillRect(0, 0, canvasW, canvasH);
 
     const d = engine.outerDesk;
 
     ctx.save();
-    // 2. Dark Wooden Frame with Bronze/Gold Trim (#5c3a21 + #c89d66 + #2b333e)
     ctx.fillStyle = '#5c3a21';
     ctx.strokeStyle = '#2b333e';
     ctx.lineWidth = 3.5;
@@ -259,8 +286,7 @@ export class ArenaRenderer {
     ctx.fill();
     ctx.stroke();
 
-    // Bronze/Gold inner bevel trim along desk border
-    ctx.strokeStyle = 'rgba(212, 163, 106, 0.55)';
+    ctx.strokeStyle = 'rgba(212, 163, 106, 0.58)';
     ctx.lineWidth = 1.6;
     ctx.beginPath();
     ctx.roundRect(d.x - 2, d.y - 1.5, d.w + 4, d.h + 5, 18);
@@ -273,7 +299,6 @@ export class ArenaRenderer {
     const woodTex = this.getOrBuildDeskTexture(d.w, d.h, deskStyle);
     ctx.drawImage(woodTex, d.x, d.y, d.w, d.h);
 
-    // 3. Active Shrunk Zone Overlay
     if (engine.shrinkSteps > 0) {
       const b = engine.activeBounds;
       ctx.fillStyle = 'rgba(28, 19, 14, 0.36)';
@@ -291,7 +316,6 @@ export class ArenaRenderer {
       ctx.setLineDash([]);
     }
 
-    // 4. Next-Turn Shrink Warning Dashed Red Line (Turns 15, 19, 23, 27)
     if (SHRINK_TURNS.includes(engine.turnCount) && engine.phase !== 'ROUND_OVER') {
       const nextRatio = Math.min(0.32, (engine.shrinkSteps + 1) * 0.07);
       const inX = (d.w * nextRatio) / 2;
@@ -390,7 +414,6 @@ export class ArenaRenderer {
           ? '#f97316'
           : '#dc2626';
 
-      // When Aim guide is ON, draw the forward trajectory arrow and curved spin indicator
       if (showAimGuide) {
         const arrowLen = 26 + powerRatio * 48;
         ctx.save();
@@ -472,7 +495,6 @@ export class ArenaRenderer {
         }
       }
 
-      // Thermometer Power Bar (Always shown, even when Aim guide is OFF)
       const tubeMaxLen = 104;
       const tubeWidth = 13;
       const fillLen = Math.max(8, powerRatio * tubeMaxLen);
@@ -561,3 +583,4 @@ export class ArenaRenderer {
     ctx.restore();
   }
 }
+

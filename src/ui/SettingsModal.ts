@@ -1,13 +1,10 @@
 /**
- * SettingsModal.ts
- * 100% Authentic "Make it yours" Settings Modal matching https://shunneklabs.app/games/pen-fight/ (v1.5.1).
- * Includes:
- * - Cream dialog card (#f7f3e3), dark charcoal border (#2b333e), top drag handle, and dotted dividers
- * - SCREEN: Theme (System / Light / Dark), Desk style (Clean / Old school), Pen look (Classic / Real)
- * - PLAY: Aim guide ("Arrow, path and spin. Off keeps the power bar."), Reduce motion, Vibration,
- *         Automatic next match ("Starts 5 seconds after a win."), Full screen, Series length (First to 3 / 5 / Endless)
- * - SOUND: Sound toggle ("Off silences effects and music."), Overall volume (80%), Effects volume (70%), Music volume (30%)
- * - PROGRESS & ABOUT: Reset progress button & Desk Wars · Pen Fight · Version 1.5.1 footer
+ * src/ui/SettingsModal.ts
+ * Professional 3-Tab Settings Studio ("🎨 Visual & Map", "🎮 Gameplay", "🔊 Audio & Data").
+ * Eliminates cramped vertical crowding while providing every setting from shunneklabs.app:
+ * - Visual & Map: UI Theme (Light / Dark), Desk Map (Clean Oak / Old School Carved), Pen Look (Real 3D / Classic)
+ * - Gameplay: Aim Guide, Reduce Motion, Haptic Vibration, Auto Next Match (5s), Series Length (First to 3 / 5 / Endless)
+ * - Audio & Data: Master Sound Toggle, Overall Volume, Board & Hit SFX Volume, Music Volume, Reset Progress
  */
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { COLORS, MatchFormat } from '../config/gameConstants';
@@ -17,6 +14,7 @@ import EventEmitter from 'eventemitter3';
 
 export type DeskStyle = 'clean' | 'old_school';
 export type PenLook = 'classic' | 'real';
+type SettingsTab = 'visual' | 'play' | 'audio';
 
 export interface GameSettings {
   uiTheme: UiThemeMode;
@@ -39,10 +37,11 @@ export class SettingsModal extends EventEmitter {
   public container: Container;
   private screenWidth: number;
   private screenHeight: number;
+  private activeTab: SettingsTab = 'visual';
 
   public settings: GameSettings = {
     uiTheme: 'light',
-    deskStyle: 'clean',
+    deskStyle: 'old_school',
     penLook: 'real',
     aimGuide: true,
     reduceMotion: false,
@@ -72,8 +71,7 @@ export class SettingsModal extends EventEmitter {
 
     this.backdrop = new Graphics();
     this.backdrop.eventMode = 'static';
-    this.backdrop.cursor = 'default';
-    this.backdrop.on('pointerdown', (e) => e.stopPropagation());
+    this.backdrop.on('pointerdown', () => this.hide());
     this.container.addChild(this.backdrop);
 
     this.card = new Graphics();
@@ -93,16 +91,16 @@ export class SettingsModal extends EventEmitter {
   private createCloseButton(): Container {
     const btn = new Container();
     const bg = new Graphics()
-      .roundRect(-17, -17, 34, 34, 10)
+      .roundRect(-16, -16, 32, 32, 10)
       .fill({ color: 0xEAE2CF })
-      .stroke({ color: 0x2B333E, width: 2.2 });
+      .stroke({ color: 0x2B333E, width: 2 });
     btn.addChild(bg);
 
     const txt = new Text({
       text: '✕',
       style: new TextStyle({
         fontFamily: 'Fredoka, sans-serif',
-        fontSize: 15,
+        fontSize: 14,
         fill: 0x2B333E,
         fontWeight: 'bold',
       }),
@@ -140,40 +138,32 @@ export class SettingsModal extends EventEmitter {
 
     this.backdrop.clear()
       .rect(0, 0, screenWidth, screenHeight)
-      .fill({ color: 0x121820, alpha: 0.68 });
+      .fill({ color: 0x0F172A, alpha: 0.72 });
 
-    const cardW = Math.min(screenWidth - 24, 416);
-    const cardH = Math.min(screenHeight - 20, 670);
+    const cardW = Math.min(screenWidth - 24, 412);
+    const cardH = Math.min(screenHeight - 36, 540);
     const cardX = (screenWidth - cardW) / 2;
     const cardY = (screenHeight - cardH) / 2;
 
-    const cardBgColor = isDark ? 0x222938 : 0xF7F3E3;
-    const cardBorderColor = isDark ? 0x11161D : 0x2B333E;
+    const cardBgColor = isDark ? 0x1E293B : 0xF7F3E3;
+    const cardBorderColor = isDark ? 0x0F172A : 0x2B333E;
 
     this.card.clear()
-      .roundRect(cardX, cardY + 5, cardW, cardH, 24)
+      .roundRect(cardX, cardY + 6, cardW, cardH, 24)
       .fill({ color: COLORS.navyShadow })
       .roundRect(cardX, cardY, cardW, cardH, 24)
       .fill({ color: cardBgColor })
-      .stroke({ color: cardBorderColor, width: 3.2 });
+      .stroke({ color: cardBorderColor, width: 3.4 });
 
-    // Top horizontal drag handle (---)
     this.card
       .roundRect(screenWidth / 2 - 22, cardY + 9, 44, 4, 2)
       .fill({ color: isDark ? 0x475569 : 0xC8BFA8 });
 
-    this.closeBtn.x = cardX + cardW - 28;
-    this.closeBtn.y = cardY + 30;
+    this.closeBtn.x = cardX + cardW - 34;
+    this.closeBtn.y = cardY + 38;
 
     this.contentContainer.x = cardX + 20;
-    this.contentContainer.y = cardY + 18;
-  }
-
-  private drawDottedDivider(g: Graphics, y: number, w: number, isDark: boolean): void {
-    const col = isDark ? 0x374151 : 0xD2C7B0;
-    for (let x = 0; x < w; x += 8) {
-      g.circle(x, y, 1.1).fill({ color: col });
-    }
+    this.contentContainer.y = cardY + 22;
   }
 
   private renderContent(): void {
@@ -181,366 +171,423 @@ export class SettingsModal extends EventEmitter {
     cc.removeChildren();
 
     const isDark = this.settings.uiTheme === 'dark';
-    const textPrimaryColor = isDark ? 0xF3F4F6 : 0x2B333E;
-    const textSecColor = isDark ? 0x9CA3AF : 0x6E6658;
-    const totalW = Math.min(this.screenWidth - 64, 376);
+    const textPrimary = isDark ? 0xF8FAFC : 0x2B333E;
+    const textMuted = isDark ? 0x94A3B8 : 0x6E6658;
+    const totalW = Math.min(this.screenWidth - 64, 372);
 
-    const dividers = new Graphics();
-    cc.addChild(dividers);
-
-    // Header: [⚙] Make it yours
+    // Header
     const gearBadge = new Graphics()
-      .roundRect(0, 2, 32, 32, 10)
-      .fill({ color: 0xFAD24B })
+      .roundRect(0, 0, 34, 34, 10)
+      .fill({ color: COLORS.butterYellow })
       .stroke({ color: 0x2B333E, width: 2 });
     cc.addChild(gearBadge);
 
     const gearTxt = new Text({
       text: '⚙',
-      style: new TextStyle({ fontSize: 17, fill: 0x2B333E, fontWeight: 'bold' })
+      style: new TextStyle({ fontSize: 18, fill: 0x2B333E, fontWeight: 'bold' })
     });
     gearTxt.anchor.set(0.5, 0.5);
-    gearTxt.x = 16;
-    gearTxt.y = 18;
+    gearTxt.x = 17;
+    gearTxt.y = 17;
     cc.addChild(gearTxt);
 
     const title = new Text({
       text: 'Make it yours',
       style: new TextStyle({
         fontFamily: 'Fredoka, sans-serif',
-        fontSize: 21,
-        fill: textPrimaryColor,
+        fontSize: 22,
+        fill: textPrimary,
         fontWeight: 'bold',
       })
     });
-    title.x = 40;
-    title.y = 5;
+    title.x = 44;
+    title.y = 3;
     cc.addChild(title);
 
-    let currY = 44;
-    this.drawDottedDivider(dividers, currY - 5, totalW, isDark);
+    // 3 Studio Category Tabs
+    const tabsY = 46;
+    const tabW = (totalW - 12) / 3;
+    const tabs: { id: SettingsTab; label: string }[] = [
+      { id: 'visual', label: '🎨 Visual & Map' },
+      { id: 'play', label: '🎮 Gameplay' },
+      { id: 'audio', label: '🔊 Audio & Data' },
+    ];
 
-    const sectionStyle = new TextStyle({
+    tabs.forEach((t, idx) => {
+      const isSel = this.activeTab === t.id;
+      const tBtn = new Container();
+      tBtn.x = idx * (tabW + 6);
+      tBtn.y = tabsY;
+      tBtn.eventMode = 'static';
+      tBtn.cursor = 'pointer';
+      tBtn.addChild(
+        new Graphics()
+          .roundRect(0, 0, tabW, 34, 10)
+          .fill({ color: isSel ? COLORS.butterYellow : (isDark ? 0x334155 : 0xEAE2CF) })
+          .stroke({ color: 0x2B333E, width: isSel ? 2.4 : 1.6 })
+      );
+      const lbl = new Text({
+        text: t.label,
+        style: new TextStyle({
+          fontFamily: 'Fredoka, sans-serif',
+          fontSize: 11.5,
+          fill: isSel ? 0x2B333E : textPrimary,
+          fontWeight: 'bold'
+        })
+      });
+      lbl.anchor.set(0.5, 0.5);
+      lbl.x = tabW / 2;
+      lbl.y = 17;
+      tBtn.addChild(lbl);
+      tBtn.on('pointerdown', (e) => {
+        e.stopPropagation();
+        soundManager.play('ui_click');
+        this.activeTab = t.id;
+        this.renderContent();
+      });
+      cc.addChild(tBtn);
+    });
+
+    let currY = tabsY + 50;
+    const labelStyle = new TextStyle({
       fontFamily: 'Nunito, sans-serif',
-      fontSize: 10.5,
-      fill: textSecColor,
+      fontSize: 11,
+      fill: textMuted,
       fontWeight: '800',
-      letterSpacing: 1.4,
+      letterSpacing: 1.2
     });
 
-    // ── SECTION 1: SCREEN ──────────────────────────────────────────
-    const screenSec = new Text({ text: 'SCREEN', style: sectionStyle });
-    screenSec.y = currY;
-    cc.addChild(screenSec);
-    currY += 16;
+    if (this.activeTab === 'visual') {
+      // 1. UI Theme
+      const tLbl = new Text({ text: 'INTERFACE THEME', style: labelStyle });
+      tLbl.y = currY;
+      cc.addChild(tLbl);
+      currY += 20;
 
-    const themeRow = this.createSegmentedControl(
-      totalW,
-      [
-        { key: 'light', label: 'Light' },
-        { key: 'dark', label: 'Dark' },
-      ],
-      this.settings.uiTheme,
-      async (val) => {
-        this.settings.uiTheme = val as UiThemeMode;
-        await themeManager.setUiTheme(this.settings.uiTheme);
-        this.emit('settings_changed', this.settings);
-        this.layout();
+      const themeRow = this.createSegmentedControl(
+        totalW,
+        [
+          { key: 'light', label: '☀️ Warm Classroom' },
+          { key: 'dark', label: '🌙 Midnight Slate' },
+        ],
+        this.settings.uiTheme,
+        async (val) => {
+          this.settings.uiTheme = val as UiThemeMode;
+          await themeManager.setUiTheme(this.settings.uiTheme);
+          this.emit('settings_changed', this.settings);
+          this.layout();
+          this.renderContent();
+        }
+      );
+      themeRow.y = currY;
+      cc.addChild(themeRow);
+      currY += 54;
+
+      // 2. Playground Desk Map
+      const dLbl = new Text({ text: 'PLAYGROUND DESK MAP', style: labelStyle });
+      dLbl.y = currY;
+      cc.addChild(dLbl);
+      currY += 20;
+
+      const deskRow = this.createSegmentedControl(
+        totalW,
+        [
+          { key: 'old_school', label: '🖍️ Old School Carved' },
+          { key: 'clean', label: '✨ Clean Tournament Oak' },
+        ],
+        this.settings.deskStyle,
+        async (val) => {
+          this.settings.deskStyle = val as DeskStyle;
+          await themeManager.setDeskTheme(val === 'old_school' ? 'old-school' : 'clean');
+          this.emit('settings_changed', this.settings);
+          this.renderContent();
+        }
+      );
+      deskRow.y = currY;
+      cc.addChild(deskRow);
+      currY += 54;
+
+      // 3. Pen Shader Mode
+      const pLbl = new Text({ text: 'PEN RENDERING ENGINE', style: labelStyle });
+      pLbl.y = currY;
+      cc.addChild(pLbl);
+      currY += 20;
+
+      const penRow = this.createSegmentedControl(
+        totalW,
+        [
+          { key: 'real', label: '✨ Real 3D Shaded' },
+          { key: 'classic', label: '🎨 Classic Vector' },
+        ],
+        this.settings.penLook,
+        async (val) => {
+          this.settings.penLook = val as PenLook;
+          await themeManager.setPenLook(val as PenLookMode);
+          this.emit('settings_changed', this.settings);
+          this.renderContent();
+        }
+      );
+      penRow.y = currY;
+      cc.addChild(penRow);
+      currY += 56;
+
+      // 4. Full Screen Toggle
+      const fsRow = this.createToggleCard(
+        totalW,
+        'Full screen mode',
+        'Fills the entire screen. Press Esc to exit.',
+        this.settings.fullScreen,
+        (val) => {
+          this.settings.fullScreen = val;
+          if (val && !document.fullscreenElement) {
+            document.documentElement.requestFullscreen?.().catch(() => {});
+          } else if (!val && document.fullscreenElement) {
+            document.exitFullscreen?.().catch(() => {});
+          }
+          this.renderContent();
+        }
+      );
+      fsRow.y = currY;
+      cc.addChild(fsRow);
+    } else if (this.activeTab === 'play') {
+      const aimRow = this.createToggleCard(
+        totalW,
+        'Aim guide',
+        'Arrow, path and spin arc. Off keeps the power bar.',
+        this.settings.aimGuide,
+        (val) => {
+          this.settings.aimGuide = val;
+          this.emit('settings_changed', this.settings);
+          this.renderContent();
+        }
+      );
+      aimRow.y = currY;
+      cc.addChild(aimRow);
+      currY += 62;
+
+      const motionRow = this.createToggleCard(
+        totalW,
+        'Reduce motion',
+        'Disables camera impact shake and moving effects.',
+        this.settings.reduceMotion,
+        (val) => {
+          this.settings.reduceMotion = val;
+          this.emit('settings_changed', this.settings);
+          this.renderContent();
+        }
+      );
+      motionRow.y = currY;
+      cc.addChild(motionRow);
+      currY += 62;
+
+      const vibRow = this.createToggleCard(
+        totalW,
+        'Haptic vibration',
+        'Tactile buzz on pull ticks and heavy collisions.',
+        this.settings.vibration,
+        (val) => {
+          this.settings.vibration = val;
+          soundManager.setVibrationEnabled(val);
+          this.emit('settings_changed', this.settings);
+          this.renderContent();
+        }
+      );
+      vibRow.y = currY;
+      cc.addChild(vibRow);
+      currY += 62;
+
+      const autoRow = this.createToggleCard(
+        totalW,
+        'Automatic next match',
+        'Starts the next match 5 seconds after a round ends.',
+        this.settings.automaticNextMatch,
+        (val) => {
+          this.settings.automaticNextMatch = val;
+          this.emit('settings_changed', this.settings);
+          this.renderContent();
+        }
+      );
+      autoRow.y = currY;
+      cc.addChild(autoRow);
+      currY += 66;
+
+      const sLbl = new Text({ text: 'SERIES LENGTH (STARTS NEXT SERIES)', style: labelStyle });
+      sLbl.y = currY;
+      cc.addChild(sLbl);
+      currY += 18;
+
+      const formatRow = this.createSegmentedControl(
+        totalW,
+        [
+          { key: 'first_to_3', label: 'First to 3' },
+          { key: 'first_to_5', label: 'First to 5' },
+          { key: 'endless', label: 'Endless' },
+        ],
+        this.settings.matchFormat,
+        (val) => {
+          this.settings.matchFormat = val as MatchFormat;
+          this.emit('settings_changed', this.settings);
+          this.renderContent();
+        }
+      );
+      formatRow.y = currY;
+      cc.addChild(formatRow);
+    } else {
+      // AUDIO & DATA TAB
+      const sndRow = this.createToggleCard(
+        totalW,
+        'Master sound',
+        'Off silences all board effects and background music.',
+        this.settings.soundEnabled,
+        (val) => {
+          this.settings.soundEnabled = val;
+          soundManager.setEnabled(val);
+          this.emit('settings_changed', this.settings);
+          this.renderContent();
+        }
+      );
+      sndRow.y = currY;
+      cc.addChild(sndRow);
+      currY += 68;
+
+      const ovRow = this.createVolumeCard(totalW, 'Overall volume', this.settings.overallVolume, (val) => {
+        this.settings.overallVolume = val;
+        soundManager.setOverallVolume(val);
+        soundManager.play('ui_click');
         this.renderContent();
-      },
-    );
-    themeRow.y = currY;
-    cc.addChild(themeRow);
-    currY += 34;
+      });
+      ovRow.y = currY;
+      cc.addChild(ovRow);
+      currY += 62;
 
-    const deskRow = this.createSegmentedControl(
-      totalW,
-      [
-        { key: 'clean', label: 'Clean desk' },
-        { key: 'old_school', label: 'Old school desk' },
-      ],
-      this.settings.deskStyle,
-      async (val) => {
-        this.settings.deskStyle = val as DeskStyle;
-        await themeManager.setDeskTheme(val === 'old_school' ? 'old-school' : 'clean');
-        this.emit('settings_changed', this.settings);
+      const sfxRow = this.createVolumeCard(totalW, 'Board & Hit SFX volume', this.settings.sfxVolume, (val) => {
+        this.settings.sfxVolume = val;
+        soundManager.setSFXVolume(val);
+        soundManager.play('flick');
         this.renderContent();
-      },
-    );
-    deskRow.y = currY;
-    cc.addChild(deskRow);
-    currY += 34;
+      });
+      sfxRow.y = currY;
+      cc.addChild(sfxRow);
+      currY += 62;
 
-    const penRow = this.createSegmentedControl(
-      totalW,
-      [
-        { key: 'classic', label: 'Classic look' },
-        { key: 'real', label: 'Real look' },
-      ],
-      this.settings.penLook,
-      async (val) => {
-        this.settings.penLook = val as PenLook;
-        await themeManager.setPenLook(val as PenLookMode);
-        this.emit('settings_changed', this.settings);
+      const musRow = this.createVolumeCard(totalW, 'Music volume', this.settings.musicVolume, (val) => {
+        this.settings.musicVolume = val;
+        soundManager.setMusicVolume(val);
         this.renderContent();
-      },
-    );
-    penRow.y = currY;
-    cc.addChild(penRow);
-    currY += 38;
+      });
+      musRow.y = currY;
+      cc.addChild(musRow);
+      currY += 68;
 
-    this.drawDottedDivider(dividers, currY - 4, totalW, isDark);
+      // Reset Progress Card
+      const resetCard = new Container();
+      resetCard.y = currY;
+      resetCard.addChild(
+        new Graphics()
+          .roundRect(0, 0, totalW, 52, 12)
+          .fill({ color: isDark ? 0x334155 : 0xEFE9D8 })
+          .stroke({ color: 0x2B333E, width: 1.8 })
+      );
+      const rTitle = new Text({
+        text: 'Reset career progress',
+        style: new TextStyle({ fontFamily: 'Fredoka, sans-serif', fontSize: 13.5, fill: textPrimary, fontWeight: 'bold' })
+      });
+      rTitle.x = 14;
+      rTitle.y = 8;
+      resetCard.addChild(rTitle);
 
-    // ── SECTION 2: PLAY ────────────────────────────────────────────
-    const playSec = new Text({ text: 'PLAY', style: sectionStyle });
-    playSec.y = currY;
-    cc.addChild(playSec);
-    currY += 16;
+      const rSub = new Text({
+        text: 'Clears XP, levels and streaks. Settings stay.',
+        style: new TextStyle({ fontFamily: 'Nunito, sans-serif', fontSize: 10.5, fill: textMuted, fontWeight: '700' })
+      });
+      rSub.x = 14;
+      rSub.y = 28;
+      resetCard.addChild(rSub);
 
-    const aimRow = this.createToggleRow(
-      totalW,
-      'Aim guide',
-      'Arrow, path and spin. Off keeps the power bar.',
-      this.settings.aimGuide,
-      (val) => {
-        this.settings.aimGuide = val;
-        this.emit('settings_changed', this.settings);
-        this.renderContent();
-      }
-    );
-    aimRow.y = currY;
-    cc.addChild(aimRow);
-    currY += 36;
+      const rBtn = new Container();
+      rBtn.x = totalW - 76;
+      rBtn.y = 11;
+      rBtn.eventMode = 'static';
+      rBtn.cursor = 'pointer';
+      rBtn.addChild(
+        new Graphics()
+          .roundRect(0, 0, 64, 30, 8)
+          .fill({ color: 0xFCA5A5 })
+          .stroke({ color: 0x2B333E, width: 1.8 })
+      );
+      const rTxt = new Text({
+        text: 'Reset',
+        style: new TextStyle({ fontFamily: 'Fredoka, sans-serif', fontSize: 12, fill: 0x2B333E, fontWeight: 'bold' })
+      });
+      rTxt.anchor.set(0.5, 0.5);
+      rTxt.x = 32;
+      rTxt.y = 15;
+      rBtn.addChild(rTxt);
+      rBtn.on('pointerdown', (e) => {
+        e.stopPropagation();
+        soundManager.play('ui_click');
+        try {
+          localStorage.removeItem('pen_fight_progression');
+          localStorage.removeItem('pen_fight_stats');
+        } catch {}
+        this.emit('reset_progress');
+      });
+      resetCard.addChild(rBtn);
+      cc.addChild(resetCard);
+    }
 
-    const motionRow = this.createToggleRow(
-      totalW,
-      'Reduce motion',
-      'No shake, zoom or moving effects.',
-      this.settings.reduceMotion,
-      (val) => {
-        this.settings.reduceMotion = val;
-        this.emit('settings_changed', this.settings);
-        this.renderContent();
-      }
-    );
-    motionRow.y = currY;
-    cc.addChild(motionRow);
-    currY += 36;
-
-    const vibRow = this.createToggleRow(
-      totalW,
-      'Vibration',
-      'A light buzz while you pull.',
-      this.settings.vibration,
-      (val) => {
-        this.settings.vibration = val;
-        soundManager.setVibrationEnabled(val);
-        this.emit('settings_changed', this.settings);
-        this.renderContent();
-      }
-    );
-    vibRow.y = currY;
-    cc.addChild(vibRow);
-    currY += 36;
-
-    const autoRow = this.createToggleRow(
-      totalW,
-      'Automatic next match',
-      'Starts 5 seconds after a win.',
-      this.settings.automaticNextMatch,
-      (val) => {
-        this.settings.automaticNextMatch = val;
-        this.emit('settings_changed', this.settings);
-        this.renderContent();
-      }
-    );
-    autoRow.y = currY;
-    cc.addChild(autoRow);
-    currY += 38;
-
-    const seriesLbl = new Text({
-      text: 'Series length · Starts with the next series.',
-      style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
-        fontSize: 11.5,
-        fill: textPrimaryColor,
-        fontWeight: 'bold'
-      })
-    });
-    seriesLbl.y = currY;
-    cc.addChild(seriesLbl);
-    currY += 18;
-
-    const formatRow = this.createSegmentedControl(
-      totalW,
-      [
-        { key: 'first_to_3', label: 'First to 3' },
-        { key: 'first_to_5', label: 'First to 5' },
-        { key: 'endless', label: 'Endless' },
-      ],
-      this.settings.matchFormat,
-      (val) => {
-        this.settings.matchFormat = val as MatchFormat;
-        this.emit('settings_changed', this.settings);
-        this.renderContent();
-      },
-    );
-    formatRow.y = currY;
-    cc.addChild(formatRow);
-    currY += 38;
-
-    this.drawDottedDivider(dividers, currY - 4, totalW, isDark);
-
-    // ── SECTION 3: SOUND ───────────────────────────────────────────
-    const soundSec = new Text({ text: 'SOUND', style: sectionStyle });
-    soundSec.y = currY;
-    cc.addChild(soundSec);
-    currY += 16;
-
-    const sndToggle = this.createToggleRow(
-      totalW,
-      'Sound',
-      'Off silences effects and music.',
-      this.settings.soundEnabled,
-      (val) => {
-        this.settings.soundEnabled = val;
-        soundManager.setEnabled(val);
-        this.emit('settings_changed', this.settings);
-        this.renderContent();
-      }
-    );
-    sndToggle.y = currY;
-    cc.addChild(sndToggle);
-    currY += 36;
-
-    const overallRow = this.createVolumeRow(totalW, 'Overall volume', this.settings.overallVolume, (val) => {
-      this.settings.overallVolume = val;
-      soundManager.setOverallVolume(val);
-      soundManager.play('ui_click');
-      this.renderContent();
-    });
-    overallRow.y = currY;
-    cc.addChild(overallRow);
-    currY += 30;
-
-    const sfxRow = this.createVolumeRow(totalW, 'Effects volume', this.settings.sfxVolume, (val) => {
-      this.settings.sfxVolume = val;
-      soundManager.setSFXVolume(val);
-      soundManager.play('flick');
-      this.renderContent();
-    });
-    sfxRow.y = currY;
-    cc.addChild(sfxRow);
-    currY += 30;
-
-    const musicRow = this.createVolumeRow(totalW, 'Music volume', this.settings.musicVolume, (val) => {
-      this.settings.musicVolume = val;
-      soundManager.setMusicVolume(val);
-      this.renderContent();
-    });
-    musicRow.y = currY;
-    cc.addChild(musicRow);
-    currY += 34;
-
-    this.drawDottedDivider(dividers, currY - 4, totalW, isDark);
-
-    // ── SECTION 4: PROGRESS & ABOUT ────────────────────────────────
-    const progRow = new Container();
-    progRow.y = currY;
-    const resetLbl = new Text({
-      text: 'Reset progress · Pens, XP and streaks',
-      style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
-        fontSize: 11.5,
-        fill: textPrimaryColor,
-        fontWeight: 'bold'
-      })
-    });
-    resetLbl.y = 5;
-    progRow.addChild(resetLbl);
-
-    const resetBtn = new Container();
-    resetBtn.x = totalW - 64;
-    resetBtn.eventMode = 'static';
-    resetBtn.cursor = 'pointer';
-    const rBg = new Graphics()
-      .roundRect(0, 0, 64, 26, 8)
-      .fill({ color: 0xFCA5A5 })
-      .stroke({ color: 0x2B333E, width: 1.8 });
-    resetBtn.addChild(rBg);
-    const rTxt = new Text({
-      text: 'Reset',
-      style: new TextStyle({ fontFamily: 'Fredoka, sans-serif', fontSize: 12, fill: 0x2B333E, fontWeight: 'bold' })
-    });
-    rTxt.anchor.set(0.5, 0.5);
-    rTxt.x = 32;
-    rTxt.y = 13;
-    resetBtn.addChild(rTxt);
-    resetBtn.on('pointerdown', (e) => {
-      e.stopPropagation();
-      soundManager.play('ui_click');
-      try {
-        localStorage.removeItem('pen_fight_progression');
-      } catch {}
-      this.emit('reset_progress');
-    });
-    progRow.addChild(resetBtn);
-    cc.addChild(progRow);
-    currY += 32;
-
-    const aboutTxt = new Text({
-      text: 'Desk Wars · Pen Fight · Version 1.5.1 · Fonts: Fredoka & Nunito',
+    // Footer Version Attribution
+    const footer = new Text({
+      text: 'Desk Wars · Pen Fight · Version 1.5.1 · Ultra-HD Edition',
       style: new TextStyle({
         fontFamily: 'Nunito, sans-serif',
         fontSize: 10.5,
-        fill: textSecColor,
+        fill: textMuted,
         fontWeight: '700'
       })
     });
-    aboutTxt.anchor.set(0.5, 0);
-    aboutTxt.x = totalW / 2;
-    aboutTxt.y = currY;
-    cc.addChild(aboutTxt);
+    footer.anchor.set(0.5, 0);
+    footer.x = totalW / 2;
+    footer.y = 474;
+    cc.addChild(footer);
   }
 
   private createSegmentedControl(
     totalW: number,
     items: { key: string; label: string }[],
     currentKey: string,
-    onSelect: (key: string) => void,
+    onSelect: (key: string) => void
   ): Container {
     const row = new Container();
-    const itemW = (totalW - (items.length - 1) * 6) / items.length;
+    const itemW = (totalW - (items.length - 1) * 8) / items.length;
     const isDark = this.settings.uiTheme === 'dark';
 
     items.forEach((item, idx) => {
       const isSelected = item.key === currentKey;
-      const x = idx * (itemW + 6);
+      const x = idx * (itemW + 8);
 
       const btn = new Container();
       btn.x = x;
 
-      const unselectedBg = isDark ? 0x2A3244 : 0xEAE2CF;
-      const unselectedBorder = isDark ? 0x374151 : 0xBFB5A0;
-
+      const unselectedBg = isDark ? 0x334155 : 0xEAE2CF;
       const bg = new Graphics()
-        .roundRect(0, 0, itemW, 28, 9)
-        .fill({ color: isSelected ? 0xFAD24B : unselectedBg })
-        .stroke({ color: isSelected ? 0x2B333E : unselectedBorder, width: isSelected ? 2.2 : 1.5 });
+        .roundRect(0, 0, itemW, 36, 10)
+        .fill({ color: isSelected ? COLORS.butterYellow : unselectedBg })
+        .stroke({ color: 0x2B333E, width: isSelected ? 2.4 : 1.6 });
       btn.addChild(bg);
 
       const txt = new Text({
         text: item.label,
         style: new TextStyle({
           fontFamily: 'Fredoka, sans-serif',
-          fontSize: 12,
-          fill: isSelected ? 0x2B333E : (isDark ? 0xCBD5E1 : 0x2B333E),
+          fontSize: 12.5,
+          fill: isSelected ? 0x2B333E : (isDark ? 0xF8FAFC : 0x2B333E),
           fontWeight: 'bold',
         }),
       });
       txt.anchor.set(0.5, 0.5);
       txt.x = itemW / 2;
-      txt.y = 14;
+      txt.y = 18;
       btn.addChild(txt);
 
       btn.eventMode = 'static';
@@ -557,28 +604,35 @@ export class SettingsModal extends EventEmitter {
     return row;
   }
 
-  private createToggleRow(
+  private createToggleCard(
     totalW: number,
     label: string,
     subtitle: string,
     enabled: boolean,
     onToggle: (val: boolean) => void
   ): Container {
-    const row = new Container();
+    const card = new Container();
     const isDark = this.settings.uiTheme === 'dark';
+
+    card.addChild(
+      new Graphics()
+        .roundRect(0, 0, totalW, 54, 12)
+        .fill({ color: isDark ? 0x334155 : 0xEFE9D8 })
+        .stroke({ color: 0x2B333E, width: 1.8 })
+    );
 
     const txt = new Text({
       text: label,
       style: new TextStyle({
         fontFamily: 'Fredoka, sans-serif',
-        fontSize: 13,
+        fontSize: 13.5,
         fontWeight: 'bold',
-        fill: isDark ? 0xF3F4F6 : 0x2B333E,
+        fill: isDark ? 0xF8FAFC : 0x2B333E,
       }),
     });
-    txt.x = 0;
-    txt.y = 0;
-    row.addChild(txt);
+    txt.x = 14;
+    txt.y = 8;
+    card.addChild(txt);
 
     const sub = new Text({
       text: subtitle,
@@ -586,110 +640,131 @@ export class SettingsModal extends EventEmitter {
         fontFamily: 'Nunito, sans-serif',
         fontSize: 10.5,
         fontWeight: '700',
-        fill: isDark ? 0x9CA3AF : 0x6E6658,
+        fill: isDark ? 0x94A3B8 : 0x6E6658,
       }),
     });
-    sub.x = 0;
-    sub.y = 16;
-    row.addChild(sub);
+    sub.x = 14;
+    sub.y = 29;
+    card.addChild(sub);
 
     const toggle = new Container();
-    toggle.x = totalW - 46;
-    toggle.y = 4;
+    toggle.x = totalW - 60;
+    toggle.y = 15;
 
     const track = new Graphics()
-      .roundRect(0, 0, 44, 22, 11)
-      .fill({ color: enabled ? 0xA7CC8D : (isDark ? 0x374151 : 0xD5CBB8) })
+      .roundRect(0, 0, 46, 24, 12)
+      .fill({ color: enabled ? 0x86EFAC : 0xCBD5E1 })
       .stroke({ color: 0x2B333E, width: 2 });
     toggle.addChild(track);
 
     const thumb = new Graphics()
-      .circle(enabled ? 33 : 11, 11, 8)
+      .circle(enabled ? 34 : 12, 12, 8.5)
       .fill({ color: COLORS.white })
       .stroke({ color: 0x2B333E, width: 2 });
     toggle.addChild(thumb);
 
-    toggle.eventMode = 'static';
-    toggle.cursor = 'pointer';
-    toggle.on('pointerdown', (e) => {
+    card.eventMode = 'static';
+    card.cursor = 'pointer';
+    card.on('pointerdown', (e) => {
       e.stopPropagation();
       soundManager.play('ui_click');
       onToggle(!enabled);
     });
 
-    row.addChild(toggle);
-    return row;
+    card.addChild(toggle);
+    return card;
   }
 
-  private createVolumeRow(totalW: number, label: string, volume: number, onChange: (val: number) => void): Container {
-    const row = new Container();
+  private createVolumeCard(
+    totalW: number,
+    label: string,
+    volume: number,
+    onChange: (val: number) => void
+  ): Container {
+    const card = new Container();
     const isDark = this.settings.uiTheme === 'dark';
 
+    card.addChild(
+      new Graphics()
+        .roundRect(0, 0, totalW, 54, 12)
+        .fill({ color: isDark ? 0x334155 : 0xEFE9D8 })
+        .stroke({ color: 0x2B333E, width: 1.8 })
+    );
+
     const txt = new Text({
-      text: `${label} (${Math.round(volume * 100)}%)`,
+      text: `${label}: ${Math.round(volume * 100)}%`,
       style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
-        fontSize: 12,
+        fontFamily: 'Fredoka, sans-serif',
+        fontSize: 13,
         fontWeight: 'bold',
-        fill: isDark ? 0xF3F4F6 : 0x2B333E,
+        fill: isDark ? 0xF8FAFC : 0x2B333E,
       }),
     });
-    txt.x = 0;
-    txt.y = 3;
-    row.addChild(txt);
+    txt.x = 14;
+    txt.y = 7;
+    card.addChild(txt);
 
-    // Visual slider bar + [-]/[+] steppers
-    const barW = 92;
-    const barX = totalW - 168;
-    const barG = new Graphics()
-      .roundRect(barX, 8, barW, 8, 4)
-      .fill({ color: 0xD5CBB8 })
-      .stroke({ color: 0x2B333E, width: 1.4 });
-    if (volume > 0.01) {
-      barG.roundRect(barX, 8, Math.max(8, barW * volume), 8, 4)
-        .fill({ color: 0xFAD24B })
+    // 10 clickable volume segments + [-] / [+] buttons
+    const segCount = 10;
+    const barStartX = 14;
+    const barW = totalW - 110;
+    const segGap = 4;
+    const segW = (barW - segGap * (segCount - 1)) / segCount;
+
+    for (let i = 0; i < segCount; i++) {
+      const segVal = (i + 1) / segCount;
+      const active = volume >= segVal - 0.04;
+      const seg = new Graphics()
+        .roundRect(barStartX + i * (segW + segGap), 30, segW, 14, 4)
+        .fill({ color: active ? COLORS.butterYellow : 0xD5CBB8 })
         .stroke({ color: 0x2B333E, width: 1.4 });
+      seg.eventMode = 'static';
+      seg.cursor = 'pointer';
+      seg.on('pointerdown', (e) => {
+        e.stopPropagation();
+        onChange(parseFloat(segVal.toFixed(1)));
+      });
+      card.addChild(seg);
     }
-    row.addChild(barG);
 
     const btnMinus = this.createSmallBtn('–', () => {
       onChange(Math.max(0, parseFloat((volume - 0.1).toFixed(1))));
     });
-    btnMinus.x = totalW - 68;
+    btnMinus.x = totalW - 82;
+    btnMinus.y = 14;
 
     const btnPlus = this.createSmallBtn('+', () => {
       onChange(Math.min(1, parseFloat((volume + 0.1).toFixed(1))));
     });
-    btnPlus.x = totalW - 32;
+    btnPlus.x = totalW - 44;
+    btnPlus.y = 14;
 
-    row.addChild(btnMinus);
-    row.addChild(btnPlus);
+    card.addChild(btnMinus);
+    card.addChild(btnPlus);
 
-    return row;
+    return card;
   }
 
   private createSmallBtn(label: string, onClick: () => void): Container {
     const btn = new Container();
-    const isDark = this.settings.uiTheme === 'dark';
-
     const bg = new Graphics()
-      .roundRect(0, 0, 32, 22, 6)
-      .fill({ color: isDark ? 0x2A3244 : 0xEAE2CF })
-      .stroke({ color: isDark ? 0x11161D : 0x2B333E, width: 1.6 });
+      .roundRect(0, 0, 32, 26, 7)
+      .fill({ color: 0xEAE2CF })
+      .stroke({ color: 0x2B333E, width: 1.8 });
     btn.addChild(bg);
 
     const txt = new Text({
       text: label,
       style: new TextStyle({
         fontFamily: 'Fredoka, sans-serif',
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: 'bold',
-        fill: isDark ? 0xF3F4F6 : 0x2B333E,
+        fill: 0x2B333E,
       }),
     });
     txt.anchor.set(0.5, 0.5);
     txt.x = 16;
-    txt.y = 11;
+    txt.y = 13;
     btn.addChild(txt);
 
     btn.eventMode = 'static';
@@ -709,7 +784,7 @@ export class SettingsModal extends EventEmitter {
 
   private loadSettings(): void {
     this.settings.uiTheme = themeManager.prefs.uiTheme;
-    this.settings.deskStyle = themeManager.prefs.deskTheme === 'old-school' ? 'old_school' : 'clean';
+    this.settings.deskStyle = themeManager.prefs.deskTheme === 'clean' ? 'clean' : 'old_school';
     this.settings.penLook = themeManager.prefs.penLook;
 
     try {

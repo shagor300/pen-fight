@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, Text, TextStyle } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import { COLORS } from '../config/gameConstants';
 import { PenSpec } from '../config/pensConfig';
 import { renderPenToCanvas } from '../rendering/RealPenRenderer';
@@ -336,20 +336,21 @@ export class MatchResultModal extends EventEmitter {
     const penSubRow = new Container();
     penSubRow.y = statsY + 48;
 
-    this.p1Ctx.save();
-    this.p1Ctx.setTransform(2, 0, 0, 2, 0, 0);
-    this.p1Ctx.clearRect(0, 0, 200, 50);
-    renderPenToCanvas(this.p1Ctx, this.data.p1Pen, 100, 25, 0, 'real', 0.85, 1.0);
-    this.p1Ctx.restore();
+    const c1 = document.createElement('canvas');
+    c1.width = 400; c1.height = 100;
+    const ctx1 = c1.getContext('2d')!;
+    ctx1.scale(2, 2);
+    renderPenToCanvas(ctx1, this.data.p1Pen, 100, 25, 0, 'real', 0.85, 1.0);
+    this.p1Sprite.texture = Texture.from(c1);
+    this.p1Sprite.texture.source?.update();
 
-    this.p2Ctx.save();
-    this.p2Ctx.setTransform(2, 0, 0, 2, 0, 0);
-    this.p2Ctx.clearRect(0, 0, 200, 50);
-    renderPenToCanvas(this.p2Ctx, this.data.p2Pen, 100, 25, Math.PI, 'real', 0.85, 1.0);
-    this.p2Ctx.restore();
-
-    this.p1Sprite.texture.update();
-    this.p2Sprite.texture.update();
+    const c2 = document.createElement('canvas');
+    c2.width = 400; c2.height = 100;
+    const ctx2 = c2.getContext('2d')!;
+    ctx2.scale(2, 2);
+    renderPenToCanvas(ctx2, this.data.p2Pen, 100, 25, Math.PI, 'real', 0.85, 1.0);
+    this.p2Sprite.texture = Texture.from(c2);
+    this.p2Sprite.texture.source?.update();
 
     this.p1Sprite.scale.set(0.22);
     this.p1Sprite.x = -115;
