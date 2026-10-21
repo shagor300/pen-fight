@@ -1,9 +1,7 @@
 /**
- * PauseModal.ts
- * 100% Authentic Pause Screen matching https://shunneklabs.app/games/pen-fight/ (sheet_611_02.jpg).
- * Header: [||] Paused ("Same pens · your turn can wait")
- * Summary: "Match X · You 0 · Computer 0 · First to 3" / "Win streaks · You 0 · Computer 0"
- * Buttons: Resume (mint), Restart match (dashed), Change pens, Full screen, Settings, How to play, Main menu
+ * src/ui/PauseModal.ts
+ * 100% Authentic Pause Screen matching https://shunneklabs.app/games/pen-fight/.
+ * Includes `cardContainer.eventMode = 'static'` + `stopPropagation()` so tapping inside the Pause card never closes it accidentally.
  */
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { COLORS } from '../config/gameConstants';
@@ -39,9 +37,12 @@ export class PauseModal extends EventEmitter {
 
     this.backdrop = new Graphics();
     this.backdrop.eventMode = 'static';
+    this.backdrop.on('pointerdown', (e) => e.stopPropagation());
     this.container.addChild(this.backdrop);
 
     this.cardContainer = new Container();
+    this.cardContainer.eventMode = 'static';
+    this.cardContainer.on('pointerdown', (e) => e.stopPropagation());
     this.container.addChild(this.cardContainer);
 
     this.cardSurface = new Graphics();
@@ -98,7 +99,6 @@ export class PauseModal extends EventEmitter {
 
     const topY = -h / 2 + 20;
 
-    // Green [||] Badge
     const badgeS = 38;
     const badge = new Graphics()
       .roundRect(-w / 2 + 20, topY, badgeS, badgeS, 11)

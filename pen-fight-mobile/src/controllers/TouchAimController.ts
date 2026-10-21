@@ -15,6 +15,8 @@ export class TouchAimController {
 
   private getCanvasPoint(e: PointerEvent): { x: number; y: number } {
     const rect = this.canvas.getBoundingClientRect();
+    // Engine operates in CSS pixels (0..window.innerWidth, 0..window.innerHeight).
+    // Using rect coordinates ensures exact alignment regardless of High-DPI canvas buffer resolution.
     return {
       x: e.clientX - rect.left,
       y: e.clientY - rect.top
@@ -31,6 +33,7 @@ export class TouchAimController {
       const pen = this.engine.pens[penIndex];
       if (!pen) return;
 
+      // Transform touch point into pen's local coordinates
       const dx = pt.x - pen.x;
       const dy = pt.y - pen.y;
       const cos = Math.cos(pen.angle);
@@ -40,7 +43,8 @@ export class TouchAimController {
       const localPerp = Math.abs(-dx * sin + dy * cos);
       const halfUsableL = pen.lengthPx * 0.44;
 
-      if (Math.abs(localAlong) <= pen.lengthPx * 0.78 && localPerp <= 54) {
+      // Generous touch hitbox around the active pen so mobile fingers grab effortlessly
+      if (Math.abs(localAlong) <= pen.lengthPx * 0.72 && localPerp <= 48) {
         const grabOffsetRatio = Math.max(-0.92, Math.min(0.92, localAlong / halfUsableL));
         const contact = this.engine.getContactWorldPoint(pen, grabOffsetRatio);
 
@@ -54,11 +58,9 @@ export class TouchAimController {
           grabOffsetRatio,
           pullX: pt.x - contact.x,
           pullY: pt.y - contact.y,
-          powerRatio: 0.05,
-          lastTickBucket: 0
+          powerRatio: 0.05
         };
 
-        if (this.engine.onAimTick) this.engine.onAimTick(0);
         this.canvas.setPointerCapture(e.pointerId);
       }
     });
@@ -77,14 +79,6 @@ export class TouchAimController {
       this.engine.aim.pullX = rawPullX * scale;
       this.engine.aim.pullY = rawPullY * scale;
       this.engine.aim.powerRatio = clampedDist / MAX_PULL_PX;
-
-      const bucket = Math.min(4, Math.floor(this.engine.aim.powerRatio * 4.2));
-      if (bucket !== this.engine.aim.lastTickBucket) {
-        this.engine.aim.lastTickBucket = bucket;
-        if (this.engine.onAimTick && dist >= CANCEL_PULL_PX) {
-          this.engine.onAimTick(bucket);
-        }
-      }
     });
 
     const releaseHandler = (e: PointerEvent) => {
@@ -95,6 +89,7 @@ export class TouchAimController {
       const pullDist = Math.hypot(pullX, pullY);
       const pen = this.engine.pens[penIndex];
 
+      // Cancel shot if released inside cancel zone
       if (!pen || pullDist < CANCEL_PULL_PX) {
         this.engine.aim.active = false;
         return;

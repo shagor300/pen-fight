@@ -1,15 +1,17 @@
 /**
  * src/ui/PenSelectorModal.ts
- * Professional Pen Locker & Match Setup Modal.
+ * Sleek, High-End Pen Locker & Match Setup Modal matching https://shunneklabs.app/games/pen-fight/.
  *
- * Key Fixes & Upgrades:
- * 1. PixiJS v8 GPU Texture Fix: Uses a fresh offscreen canvas + `Texture.from(offCanvas, true)`
- *    and `texture.source.update()` so clicking Next (❯), Prev (❮), or Classic/Real ALWAYS
- *    updates the rendered 3D pen immediately.
- * 2. Professional Segmented Skill Bars & Signature Skill Pill:
- *    Displays each pen's unique passive skill (e.g., "🌀 Cyclone Nib", "🔨 Titanium Impact")
- *    and 5 color-coded segmented skill bars (Weight, Speed, Spin, Grip, Reach) without covering up the pen.
- * 3. Sequential 2-Player Flow ("Pick your pen, Player 1" -> "Next: P2 picks" -> "Pick your pen, Player 2" -> "Fight").
+ * Key Upgrades & Fixes:
+ * 1. Sleek Uncluttered Showcase Card:
+ *    - Top bar inside card: [Lv1] badge on left, pagination dots (• • ▬ • •) in center, circular [ⓘ] button on right.
+ *    - Spacious 3D wooden showcase frame (184px tall) with bevelled inner shadow and [❮] / [❯] navigation arrows.
+ *    - Bold Pen Name, Tagline, and centered [ Classic | Real ] pill switch at the bottom of the card.
+ * 2. Interactive [ⓘ] Tactical Stat & Skill Overlay (Zero Text Overflow!):
+ *    - Tapping [ⓘ] toggles a clean Frosted Tactical Overlay right inside the showcase frame showing all 5 Segmented
+ *      Stat Bars (WEIGHT, SPEED, SPIN, GRIP, REACH) + the pen's Signature Skill with proper word-wrapping.
+ * 3. PixiJS v8 GPU Texture Fix (`Texture.from(freshCanvas)` + `texture.source.update()`) so clicking [❮] / [❯]
+ *    always updates the 3D pen immediately!
  */
 import { Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import { PENS_ROSTER } from '../config/pensConfig';
@@ -29,7 +31,7 @@ export class PenSelectorModal extends EventEmitter {
   public selectedIndex = 0;
   public p2SelectedIndex = 1;
   private pickingForPlayer: 1 | 2 = 1;
-  private showSkillDetail = false;
+  private showStatsOverlay = false;
 
   private mode: 'VS_AI' | 'TWO_PLAYER' = 'VS_AI';
   private selectedDifficulty: AIDifficulty = 'normal';
@@ -42,8 +44,7 @@ export class PenSelectorModal extends EventEmitter {
   private mainCard: Container;
   private mainCardSurface: Graphics;
   private penSprite: Sprite;
-  private skillBadgeContainer: Container;
-  private skillBarsContainer: Container;
+  private statsOverlayContainer: Container;
 
   private titleText: Text;
   private taglineText: Text;
@@ -75,6 +76,7 @@ export class PenSelectorModal extends EventEmitter {
     this.container.addChild(this.topBarContainer);
 
     this.mainCard = new Container();
+    this.mainCard.eventMode = 'static';
     this.mainCardSurface = new Graphics();
     this.mainCard.addChild(this.mainCardSurface);
     this.container.addChild(this.mainCard);
@@ -84,11 +86,15 @@ export class PenSelectorModal extends EventEmitter {
     this.penSprite.scale.set(0.5);
     this.mainCard.addChild(this.penSprite);
 
+    this.statsOverlayContainer = new Container();
+    this.statsOverlayContainer.visible = false;
+    this.mainCard.addChild(this.statsOverlayContainer);
+
     this.titleText = new Text({
       text: '',
       style: new TextStyle({
         fontFamily: 'Fredoka, sans-serif',
-        fontSize: 23,
+        fontSize: 25,
         fill: COLORS.textDark,
         fontWeight: 'bold',
       })
@@ -100,7 +106,7 @@ export class PenSelectorModal extends EventEmitter {
       text: '',
       style: new TextStyle({
         fontFamily: 'Nunito, sans-serif',
-        fontSize: 12,
+        fontSize: 13,
         fill: COLORS.textMuted,
         fontWeight: '700',
       })
@@ -112,7 +118,7 @@ export class PenSelectorModal extends EventEmitter {
       text: 'Lv1',
       style: new TextStyle({
         fontFamily: 'Fredoka, sans-serif',
-        fontSize: 13,
+        fontSize: 13.5,
         fill: COLORS.textDark,
         fontWeight: 'bold',
       })
@@ -124,12 +130,6 @@ export class PenSelectorModal extends EventEmitter {
 
     this.lookToggleContainer = new Container();
     this.mainCard.addChild(this.lookToggleContainer);
-
-    this.skillBadgeContainer = new Container();
-    this.mainCard.addChild(this.skillBadgeContainer);
-
-    this.skillBarsContainer = new Container();
-    this.mainCard.addChild(this.skillBarsContainer);
 
     this.controlsContainer = new Container();
     this.container.addChild(this.controlsContainer);
@@ -143,6 +143,7 @@ export class PenSelectorModal extends EventEmitter {
   public show(p1Index = 0, mode: 'VS_AI' | 'TWO_PLAYER' = 'VS_AI', diff: AIDifficulty = 'normal'): void {
     this.selectedIndex = p1Index;
     this.pickingForPlayer = 1;
+    this.showStatsOverlay = false;
     this.mode = mode;
     this.selectedDifficulty = diff;
     this.container.visible = true;
@@ -174,10 +175,10 @@ export class PenSelectorModal extends EventEmitter {
 
     this.backdrop.clear()
       .rect(0, 0, screenWidth, screenHeight)
-      .fill({ color: 0x0F172A, alpha: 0.72 });
+      .fill({ color: 0x0F172A, alpha: 0.58 });
 
     this.topBarContainer.removeChildren();
-    const topY = Math.max(16, screenHeight * 0.024);
+    const topY = Math.max(18, screenHeight * 0.028);
 
     const backBtn = this.createSquareButton('⇦', COLORS.butterYellow, () => {
       soundManager.play('ui_click');
@@ -198,27 +199,27 @@ export class PenSelectorModal extends EventEmitter {
       fontFamily: 'Fredoka, Nunito, sans-serif',
       fontSize: 22,
       fill: COLORS.cardCream,
-      stroke: { color: COLORS.navyBorder, width: 4 },
+      stroke: { color: COLORS.navyBorder, width: 4.2 },
       fontWeight: 'bold',
     });
     const headerStr = this.mode === 'TWO_PLAYER'
-      ? `Pick your pen · P${this.pickingForPlayer}`
+      ? `Pick your pen, Player ${this.pickingForPlayer}`
       : 'Pick your pen';
     const headerTitle = new Text({ text: headerStr, style: titleStyle });
     headerTitle.anchor.set(0, 0.5);
     headerTitle.x = 76;
-    headerTitle.y = topY + 21;
+    headerTitle.y = topY + 22;
     this.topBarContainer.addChild(headerTitle);
 
     const modePill = this.createModeBadge(this.mode === 'VS_AI' ? '🤖 vs Computer' : '👥 2 players');
     modePill.x = screenWidth - 20;
-    modePill.y = topY + 21;
+    modePill.y = topY + 22;
     this.topBarContainer.addChild(modePill);
 
-    const cardW = Math.min(screenWidth - 28, 392);
-    const cardH = 418;
+    const cardW = Math.min(screenWidth - 32, 384);
+    const cardH = 352;
     this.mainCard.x = screenWidth / 2;
-    this.mainCard.y = topY + 54 + cardH / 2;
+    this.mainCard.y = topY + 58 + cardH / 2;
 
     this.mainCardSurface.removeChildren();
     this.mainCardSurface.clear();
@@ -228,68 +229,113 @@ export class PenSelectorModal extends EventEmitter {
     this.mainCardSurface
       .roundRect(-cardW / 2, -cardH / 2, cardW, cardH, 24)
       .fill({ color: COLORS.cardCream })
-      .stroke({ color: COLORS.navyBorder, width: 3.5 });
+      .stroke({ color: COLORS.navyBorder, width: 3.4 });
 
     // Top-left Level Pill
-    const badgeW = 54;
+    const badgeW = 52;
     const badgeH = 26;
     this.mainCardSurface
-      .roundRect(-cardW / 2 + 16, -cardH / 2 + 12, badgeW, badgeH, 10)
+      .roundRect(-cardW / 2 + 16, -cardH / 2 + 14, badgeW, badgeH, 10)
       .fill({ color: COLORS.butterYellow })
       .stroke({ color: COLORS.navyBorder, width: 2.2 });
     this.levelBadgeText.x = -cardW / 2 + 16 + badgeW / 2;
-    this.levelBadgeText.y = -cardH / 2 + 12 + badgeH / 2;
+    this.levelBadgeText.y = -cardH / 2 + 14 + badgeH / 2;
     this.mainCardSurface.addChild(this.levelBadgeText);
 
-    // Top-right Classic / Real Switch
-    this.buildLookToggle(cardW / 2 - 78, -cardH / 2 + 11);
+    // Top-right Circular [ⓘ] Stat & Skill Info Button
+    const infoBtn = this.createInfoButton();
+    infoBtn.x = cardW / 2 - 32;
+    infoBtn.y = -cardH / 2 + 27;
+    this.mainCardSurface.addChild(infoBtn);
 
-    // Wooden Showcase Frame for the 3D Pen
+    // Rich 3D Wooden Showcase Frame for the Pen
     const frameW = cardW - 32;
-    const frameH = 142;
-    const frameY = -cardH / 2 + 46;
+    const frameH = 182;
+    const frameY = -cardH / 2 + 48;
 
+    // Outer frame bevel & warm oak surface
     this.mainCardSurface
       .roundRect(-frameW / 2, frameY, frameW, frameH, 16)
-      .fill({ color: 0xA4784B })
-      .stroke({ color: COLORS.navyBorder, width: 2.8 });
+      .fill({ color: 0x9E7247 })
+      .stroke({ color: COLORS.navyBorder, width: 3 });
 
-    // Subtle wood plank lines inside showcase
-    for (let x = -frameW / 2 + 44; x < frameW / 2; x += 58) {
+    // Inner recessed top shadow inside wooden showcase
+    this.mainCardSurface
+      .roundRect(-frameW / 2 + 3, frameY + 3, frameW - 6, 12, 6)
+      .fill({ color: 0x5C3A1E, alpha: 0.22 });
+
+    // Subtle wood plank seams
+    for (let x = -frameW / 2 + 56; x < frameW / 2 - 20; x += 64) {
       this.mainCardSurface
-        .rect(x, frameY + 2, 2, frameH - 4)
-        .fill({ color: 0x6E4522, alpha: 0.22 });
+        .rect(x, frameY + 3, 1.8, frameH - 6)
+        .fill({ color: 0x6E4522, alpha: 0.24 });
     }
 
     const prevArrow = this.createArrowButton('❮', () => this.prevPen());
-    prevArrow.x = -frameW / 2 + 24;
+    prevArrow.x = -frameW / 2 + 25;
     prevArrow.y = frameY + frameH / 2;
     this.mainCardSurface.addChild(prevArrow);
 
     const nextArrow = this.createArrowButton('❯', () => this.nextPen());
-    nextArrow.x = frameW / 2 - 24;
+    nextArrow.x = frameW / 2 - 25;
     nextArrow.y = frameY + frameH / 2;
     this.mainCardSurface.addChild(nextArrow);
 
     this.penSprite.x = 0;
     this.penSprite.y = frameY + frameH / 2;
 
-    this.dotsContainer.y = -cardH / 2 + 25;
-    this.titleText.y = frameY + frameH + 8;
-    this.taglineText.y = frameY + frameH + 35;
+    this.statsOverlayContainer.x = 0;
+    this.statsOverlayContainer.y = frameY + frameH / 2;
 
-    this.skillBadgeContainer.y = frameY + frameH + 56;
-    this.skillBarsContainer.y = frameY + frameH + 92;
+    this.dotsContainer.y = -cardH / 2 + 27;
+    this.titleText.y = frameY + frameH + 10;
+    this.taglineText.y = frameY + frameH + 41;
+
+    // Centered [ Classic | Real ] Pill Switch at Bottom of Card
+    this.buildLookToggle(0, frameY + frameH + 68);
 
     this.controlsContainer.x = screenWidth / 2;
-    this.controlsContainer.y = this.mainCard.y + cardH / 2 + 10;
+    this.controlsContainer.y = this.mainCard.y + cardH / 2 + 12;
     this.buildControls(cardW);
 
     this.container.removeChild(this.fightBtn);
     this.fightBtn = this.createFightButton();
     this.container.addChild(this.fightBtn);
     this.fightBtn.x = screenWidth / 2;
-    this.fightBtn.y = Math.min(screenHeight - 40, this.controlsContainer.y + 128);
+    this.fightBtn.y = Math.min(screenHeight - 38, this.controlsContainer.y + 132);
+  }
+
+  private createInfoButton(): Container {
+    const btn = new Container();
+    btn.eventMode = 'static';
+    btn.cursor = 'pointer';
+    const r = 14;
+    const bg = new Graphics()
+      .circle(0, 0, r)
+      .fill({ color: this.showStatsOverlay ? COLORS.butterYellow : COLORS.cardCream })
+      .stroke({ color: COLORS.navyBorder, width: 2.2 });
+    btn.addChild(bg);
+
+    const txt = new Text({
+      text: 'i',
+      style: new TextStyle({
+        fontFamily: 'Fredoka, sans-serif',
+        fontSize: 15,
+        fill: COLORS.textDark,
+        fontWeight: 'bold',
+      })
+    });
+    txt.anchor.set(0.5, 0.5);
+    btn.addChild(txt);
+
+    btn.on('pointerdown', (e) => {
+      e.stopPropagation();
+      soundManager.play('ui_click');
+      this.showStatsOverlay = !this.showStatsOverlay;
+      this.layout();
+      this.updateCard();
+    });
+    return btn;
   }
 
   private buildLookToggle(x: number, y: number): void {
@@ -297,8 +343,8 @@ export class PenSelectorModal extends EventEmitter {
     this.lookToggleContainer.x = x;
     this.lookToggleContainer.y = y;
 
-    const pillW = 124;
-    const pillH = 28;
+    const pillW = 142;
+    const pillH = 32;
     const pillR = 9999;
 
     const bg = new Graphics()
@@ -313,14 +359,14 @@ export class PenSelectorModal extends EventEmitter {
     const activeG = new Graphics()
       .roundRect(activeX, 2, activeW, pillH - 4, pillR)
       .fill({ color: COLORS.butterYellow })
-      .stroke({ color: COLORS.navyBorder, width: 1.8 });
+      .stroke({ color: COLORS.navyBorder, width: 2 });
     this.lookToggleContainer.addChild(activeG);
 
     const classicTxt = new Text({
       text: 'Classic',
       style: new TextStyle({
         fontFamily: 'Fredoka, Nunito, sans-serif',
-        fontSize: 11,
+        fontSize: 12,
         fill: COLORS.textDark,
         fontWeight: 'bold',
       })
@@ -331,10 +377,10 @@ export class PenSelectorModal extends EventEmitter {
     this.lookToggleContainer.addChild(classicTxt);
 
     const realTxt = new Text({
-      text: 'Real 3D',
+      text: 'Real',
       style: new TextStyle({
         fontFamily: 'Fredoka, Nunito, sans-serif',
-        fontSize: 11,
+        fontSize: 12,
         fill: COLORS.textDark,
         fontWeight: 'bold',
       })
@@ -361,13 +407,13 @@ export class PenSelectorModal extends EventEmitter {
 
     if (this.mode === 'VS_AI') {
       const compLabel = new Text({
-        text: 'AI DIFFICULTY',
+        text: 'COMPUTER',
         style: new TextStyle({
           fontFamily: 'Nunito, sans-serif',
-          fontSize: 10.5,
+          fontSize: 11,
           fill: 0xE2D9C5,
           fontWeight: '800',
-          letterSpacing: 1.4,
+          letterSpacing: 1.5,
         })
       });
       compLabel.anchor.set(0.5, 0);
@@ -375,7 +421,7 @@ export class PenSelectorModal extends EventEmitter {
       this.controlsContainer.addChild(compLabel);
 
       const diffRow = new Container();
-      diffRow.y = 16;
+      diffRow.y = 18;
 
       const diffs: { id: AIDifficulty; label: string }[] = [
         { id: 'easy', label: 'Easy' },
@@ -384,7 +430,7 @@ export class PenSelectorModal extends EventEmitter {
       ];
 
       const btnW = (w - 24) / 4;
-      const btnH = 34;
+      const btnH = 36;
       const startX = -w / 2;
 
       diffs.forEach((d, i) => {
@@ -395,7 +441,7 @@ export class PenSelectorModal extends EventEmitter {
 
         const isSel = this.selectedDifficulty === d.id;
         const bg = new Graphics()
-          .roundRect(-btnW / 2, 0, btnW, btnH, 11)
+          .roundRect(-btnW / 2, 0, btnW, btnH, 12)
           .fill({ color: isSel ? COLORS.skyBlue : COLORS.cardCream })
           .stroke({ color: COLORS.navyBorder, width: isSel ? 2.6 : 2 });
         btn.addChild(bg);
@@ -404,7 +450,7 @@ export class PenSelectorModal extends EventEmitter {
           text: d.label,
           style: new TextStyle({
             fontFamily: 'Fredoka, sans-serif',
-            fontSize: 12.5,
+            fontSize: 13,
             fill: COLORS.textDark,
             fontWeight: 'bold',
           })
@@ -425,7 +471,7 @@ export class PenSelectorModal extends EventEmitter {
       const masterBtn = new Container();
       masterBtn.x = startX + 3 * (btnW + 8) + btnW / 2;
       const masterBg = new Graphics()
-        .roundRect(-btnW / 2, 0, btnW, btnH, 11)
+        .roundRect(-btnW / 2, 0, btnW, btnH, 12)
         .fill({ color: 0xEAE4D2, alpha: 0.65 })
         .stroke({ color: COLORS.navyBorder, width: 2 });
       masterBtn.addChild(masterBg);
@@ -434,7 +480,7 @@ export class PenSelectorModal extends EventEmitter {
         text: 'Master 🔒',
         style: new TextStyle({
           fontFamily: 'Fredoka, sans-serif',
-          fontSize: 11.5,
+          fontSize: 12,
           fill: COLORS.textMuted,
           fontWeight: 'bold',
         })
@@ -446,19 +492,20 @@ export class PenSelectorModal extends EventEmitter {
 
       this.controlsContainer.addChild(diffRow);
     } else {
-      const namePill = new Container();
-      namePill.x = -w / 2;
-      namePill.y = 12;
-      const pillW = w;
+      // Compact centered pill like shunneklabs.app: [ ✎ Player 1 | Change name ]
+      const pillW = 216;
       const pillH = 34;
+      const namePill = new Container();
+      namePill.x = -pillW / 2;
+      namePill.y = 14;
       namePill.addChild(
         new Graphics()
-          .roundRect(0, 0, pillW, pillH, 11)
+          .roundRect(0, 0, pillW, pillH, 17)
           .fill({ color: COLORS.cardCream })
-          .stroke({ color: COLORS.navyBorder, width: 2 })
+          .stroke({ color: COLORS.navyBorder, width: 2.2 })
       );
       const nameTxt = new Text({
-        text: `✎ Selecting Pen for Player ${this.pickingForPlayer}  ·  Tap arrows above to switch`,
+        text: `✎  Player ${this.pickingForPlayer}   |   Change name`,
         style: new TextStyle({ fontFamily: 'Nunito, sans-serif', fontSize: 12, fill: COLORS.textDark, fontWeight: '800' })
       });
       nameTxt.anchor.set(0.5, 0.5);
@@ -469,7 +516,7 @@ export class PenSelectorModal extends EventEmitter {
     }
 
     const optsRow = new Container();
-    optsRow.y = 56;
+    optsRow.y = 60;
     const optW = (w - 12) / 2;
 
     const eqBtn = this.createTogglePill(optW, 'Equal levels', this.equalLevels, () => {
@@ -497,18 +544,18 @@ export class PenSelectorModal extends EventEmitter {
     pill.eventMode = 'static';
     pill.cursor = 'pointer';
 
-    const h = 34;
+    const h = 36;
     const bg = new Graphics()
-      .roundRect(-w / 2, 0, w, h, 11)
+      .roundRect(-w / 2, 0, w, h, 12)
       .fill({ color: active ? 0xDCECD0 : COLORS.cardCream })
-      .stroke({ color: COLORS.navyBorder, width: 2 });
+      .stroke({ color: COLORS.navyBorder, width: 2.2 });
     pill.addChild(bg);
 
     const txt = new Text({
       text: label,
       style: new TextStyle({
         fontFamily: 'Nunito, sans-serif',
-        fontSize: 12,
+        fontSize: 12.5,
         fill: COLORS.textDark,
         fontWeight: 'bold',
       })
@@ -545,8 +592,8 @@ export class PenSelectorModal extends EventEmitter {
     btn.eventMode = 'static';
     btn.cursor = 'pointer';
 
-    const w = Math.min(this.screenWidth - 28, 392);
-    const h = 58;
+    const w = Math.min(this.screenWidth - 32, 384);
+    const h = 60;
     const r = 9999;
 
     const shadow = new Graphics()
@@ -557,7 +604,7 @@ export class PenSelectorModal extends EventEmitter {
     const surface = new Graphics()
       .roundRect(-w / 2, 0, w, h, r)
       .fill({ color: COLORS.butterYellow })
-      .stroke({ color: COLORS.navyBorder, width: 3.2 });
+      .stroke({ color: COLORS.navyBorder, width: 3.4 });
     btn.addChild(surface);
 
     const content = new Container();
@@ -624,7 +671,7 @@ export class PenSelectorModal extends EventEmitter {
     btn.eventMode = 'static';
     btn.cursor = 'pointer';
 
-    const s = 42;
+    const s = 44;
     const r = 13;
 
     const shadow = new Graphics().roundRect(0, 4, s, s, r).fill({ color: COLORS.navyShadow });
@@ -669,7 +716,7 @@ export class PenSelectorModal extends EventEmitter {
     const bg = new Graphics()
       .roundRect(-w, -h / 2, w, h, 9999)
       .fill({ color: COLORS.skyBlue })
-      .stroke({ color: COLORS.navyBorder, width: 2 });
+      .stroke({ color: COLORS.navyBorder, width: 2.2 });
     badge.addChild(bg);
 
     const txt = new Text({
@@ -755,11 +802,10 @@ export class PenSelectorModal extends EventEmitter {
     this.titleText.text = pen.name;
     this.taglineText.text = pen.tagline || pen.description || '';
 
-    // CRITICAL PIXI.JS v8 FIX: Create a fresh 2x Retina canvas and generate a new Texture
-    // so WebGL always uploads the new pen graphic immediately when clicking Next/Prev!
+    // PIXI.JS v8 TEXTURE UPDATE FIX: Always build from a fresh 2x Retina canvas
     const freshCanvas = document.createElement('canvas');
     freshCanvas.width = 640;
-    freshCanvas.height = 260;
+    freshCanvas.height = 280;
     const fCtx = freshCanvas.getContext('2d')!;
     fCtx.save();
     fCtx.scale(2, 2);
@@ -767,10 +813,10 @@ export class PenSelectorModal extends EventEmitter {
       fCtx,
       pen,
       160,
-      65,
+      70,
       -Math.PI / 5.5,
       this.penLook,
-      1.18,
+      1.24,
       1.0,
       prog.level
     );
@@ -783,98 +829,66 @@ export class PenSelectorModal extends EventEmitter {
       oldTex.destroy(true);
     }
 
-    // 1. Signature Passive Skill Badge Pill
-    this.skillBadgeContainer.removeChildren();
-    const cardW = Math.min(this.screenWidth - 28, 392);
-    const pillW = cardW - 36;
-    const pillH = 28;
-    const skillBg = new Graphics()
-      .roundRect(-pillW / 2, 0, pillW, pillH, 10)
-      .fill({ color: 0xF2E9D4 })
-      .stroke({ color: 0xC8B99E, width: 1.5 });
-    this.skillBadgeContainer.addChild(skillBg);
+    // Interactive [ⓘ] Tactical Stat & Skill Overlay (Fits neatly inside the showcase frame)
+    this.statsOverlayContainer.removeChildren();
+    this.statsOverlayContainer.visible = this.showStatsOverlay;
+    if (this.showStatsOverlay) {
+      const boxW = 248;
+      const boxH = 164;
+      const bg = new Graphics()
+        .roundRect(-boxW / 2, -boxH / 2, boxW, boxH, 14)
+        .fill({ color: 0xF7F3E3, alpha: 0.96 })
+        .stroke({ color: COLORS.navyBorder, width: 2.5 });
+      this.statsOverlayContainer.addChild(bg);
 
-    const skillText = new Text({
-      text: `${pen.skillName || '⚡ Signature Skill'} — ${pen.skillDesc || ''}`,
-      style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
-        fontSize: 10.5,
-        fill: 0x2B333E,
-        fontWeight: '800',
-      })
-    });
-    skillText.anchor.set(0.5, 0.5);
-    skillText.x = 0;
-    skillText.y = pillH / 2;
-    this.skillBadgeContainer.addChild(skillText);
-
-    // 2. Professional Segmented 5-Stat Skill Bars (2-column compact layout)
-    this.skillBarsContainer.removeChildren();
-    const statsList: { label: string; val: number; color: number }[] = [
-      { label: 'WEIGHT', val: pen.stats.weight, color: 0xF59E0B },
-      { label: 'SPEED', val: pen.stats.speed, color: 0x10B981 },
-      { label: 'SPIN', val: pen.stats.spin, color: 0x3B82F6 },
-      { label: 'GRIP', val: pen.stats.grip, color: 0x8B5CF6 },
-      { label: 'REACH', val: pen.stats.reach, color: 0xEC4899 },
-    ];
-
-    const colW = (cardW - 48) / 2;
-    statsList.forEach((st, idx) => {
-      const col = idx % 2;
-      const row = Math.floor(idx / 2);
-      const sx = col === 0 ? -colW - 6 : 6;
-      const sy = row * 32;
-
-      const item = new Container();
-      item.x = sx;
-      item.y = sy;
-
-      const lbl = new Text({
-        text: `${st.label}`,
-        style: new TextStyle({
-          fontFamily: 'Nunito, sans-serif',
-          fontSize: 10,
-          fill: 0x52525B,
-          fontWeight: '800',
-          letterSpacing: 0.8
-        })
-      });
-      lbl.x = 0;
-      lbl.y = 0;
-      item.addChild(lbl);
-
-      const num = new Text({
-        text: `${st.val}/5`,
+      const skillHdr = new Text({
+        text: `${pen.skillName || '⚡ Signature Skill'}`,
         style: new TextStyle({
           fontFamily: 'Fredoka, sans-serif',
-          fontSize: 10.5,
-          fill: 0x2B333E,
+          fontSize: 12,
+          fill: 0xD97706,
           fontWeight: 'bold'
         })
       });
-      num.anchor.set(1, 0);
-      num.x = colW;
-      num.y = -1;
-      item.addChild(num);
+      skillHdr.anchor.set(0.5, 0);
+      skillHdr.y = -boxH / 2 + 8;
+      this.statsOverlayContainer.addChild(skillHdr);
 
-      const segGap = 4;
-      const segW = (colW - segGap * 4) / 5;
-      const segH = 8;
-      const barG = new Graphics();
-      for (let s = 0; s < 5; s++) {
-        const bx = s * (segW + segGap);
-        const filled = s < st.val;
-        barG
-          .roundRect(bx, 15, segW, segH, 3)
-          .fill({ color: filled ? st.color : 0xE2DAC9 })
-          .stroke({ color: 0x2B333E, width: filled ? 1.4 : 1.0 });
-      }
-      item.addChild(barG);
+      const statRows: { name: string; val: number; color: number }[] = [
+        { name: 'Weight', val: pen.stats.weight, color: 0xF59E0B },
+        { name: 'Speed', val: pen.stats.speed, color: 0x10B981 },
+        { name: 'Spin', val: pen.stats.spin, color: 0x3B82F6 },
+        { name: 'Grip', val: pen.stats.grip, color: 0x8B5CF6 },
+        { name: 'Reach', val: pen.stats.reach, color: 0xEC4899 },
+      ];
 
-      this.skillBarsContainer.addChild(item);
-    });
+      statRows.forEach((st, idx) => {
+        const ry = -boxH / 2 + 30 + idx * 24;
+        const lbl = new Text({
+          text: st.name,
+          style: new TextStyle({ fontFamily: 'Nunito, sans-serif', fontSize: 11.5, fill: COLORS.textDark, fontWeight: '800' })
+        });
+        lbl.x = -boxW / 2 + 16;
+        lbl.y = ry;
+        this.statsOverlayContainer.addChild(lbl);
 
-    // 3. Pagination Dots
+        const segStartX = -10;
+        const segW = 20;
+        const segH = 9;
+        const segGap = 4;
+        const barG = new Graphics();
+        for (let s = 0; s < 5; s++) {
+          const filled = s < st.val;
+          barG
+            .roundRect(segStartX + s * (segW + segGap), ry + 3, segW, segH, 3)
+            .fill({ color: filled ? st.color : 0xE2DAC9 })
+            .stroke({ color: COLORS.navyBorder, width: 1.3 });
+        }
+        this.statsOverlayContainer.addChild(barG);
+      });
+    }
+
+    // Pagination Dots
     this.dotsContainer.removeChildren();
     const dotGap = 11;
     const totalDotsW = (PENS_ROSTER.length - 1) * dotGap;

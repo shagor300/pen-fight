@@ -1,15 +1,14 @@
 /**
  * GameManager.ts
- * 100% Authentic Master Coordinator matching https://shunneklabs.app/games/pen-fight/ (v1.5.1).
- * Connects MainMenu, WhoIsPlayingModal, PenSelectorModal, HUD, PauseModal,
- * MatchResultModal (both Between-Match & Series Complete), SettingsModal, StatsModal, and HowToPlayModal.
+ * Core game coordinator connecting PenFightEngine, ArenaRenderer, TouchAimController,
+ * TopHudUpdater, ProgressionManager, and UI modals (MainMenu, PenSelectorModal, SettingsModal).
  */
-import { Application, Container } from 'pixi.js';
+import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import EventEmitter from 'eventemitter3';
 import { PenFightEngine } from '../physics/PenFightEngine';
 import { ArenaRenderer } from '../rendering/ArenaRenderer';
 import { TouchAimController } from '../controllers/TouchAimController';
-import { PENS_ROSTER } from '../config/pensConfig';
+import { PENS_ROSTER, PenSpec } from '../config/pensConfig';
 import { ProgressionManager } from './ProgressionManager';
 import { soundManager } from '../audio/SoundAndHaptics';
 import { themeManager } from '../ui/ThemeManager';
@@ -21,9 +20,8 @@ import { StatsModal } from '../ui/StatsModal';
 import { LeaderboardModal } from '../ui/LeaderboardModal';
 import { HowToPlayModal } from '../ui/HowToPlayModal';
 import { MatchResultModal } from '../ui/MatchResultModal';
-import { PauseModal } from '../ui/PauseModal';
 import { SettingsModal, GameSettings } from '../ui/SettingsModal';
-import { MatchFormat } from '../config/gameConstants';
+import { COLORS, MatchFormat } from '../config/gameConstants';
 
 export type GameMode = 'VS_AI' | 'TWO_PLAYER';
 export type AIDifficulty = 'easy' | 'normal' | 'hard';
@@ -43,29 +41,30 @@ export interface GameState {
   aiDifficulty: AIDifficulty;
   currentPlayer: 0 | 1;
   turnNumber: number;
-  matchNumber: number;
   scores: [number, number];
-  streaks: [number, number];
   roundFirstPlayer: 1 | 2;
   matchFormat: MatchFormat;
   winsNeeded: number;
-  equalLevels: boolean;
 }
 
 export class GameManager extends EventEmitter {
   private app: Application;
-  private canvasEl: HTMLCanvasElement;
+  private canvasEl: HTMLCanvasElement; // Pixi overlay canvas
 
+  // 2D Hardware-Accelerated Arena Canvas
   private arenaCanvas: HTMLCanvasElement;
   private arenaCtx: CanvasRenderingContext2D;
 
+  // New Physics & Gameplay Engine
   public engine: PenFightEngine;
   private touchController: TouchAimController;
   private progressionManager: ProgressionManager;
 
+  // Visual layers (Pixi overlays)
   private hudLayer: Container;
   private modalLayer: Container;
 
+  // UI Components
   private hud: HUD;
   private mainMenu: MainMenu;
   private whoModal: WhoIsPlayingModal;
@@ -75,16 +74,25 @@ export class GameManager extends EventEmitter {
   private leaderboardModal: LeaderboardModal;
   private howToPlayModal: HowToPlayModal;
   private matchResultModal: MatchResultModal;
-  private pauseModal: PauseModal;
 
+  // Selected Pens
   private selectedPenIndices: [number, number] = [0, 1];
+
+  // Game state
   public state: GameState;
+
+  // Center banner for round results & match outcome
+  private bannerContainer: Container;
+  private bannerBg: Graphics;
+  private bannerTitle: Text;
+  private bannerSubtitle: Text;
 
   constructor(app: Application) {
     super();
     this.app = app;
     this.canvasEl = app.canvas as HTMLCanvasElement;
 
+    // 1. Setup 2D Game Arena Canvas
     this.arenaCanvas = document.createElement('canvas');
     this.arenaCanvas.id = 'arena-canvas';
     this.arenaCanvas.style.position = 'absolute';
@@ -107,6 +115,7 @@ export class GameManager extends EventEmitter {
     const appDiv = document.getElementById('app') || document.body;
     appDiv.insertBefore(this.arenaCanvas, this.canvasEl);
 
+    // 2. Initialize Pure Simulation Engine & Touch Controller
     this.engine = new PenFightEngine();
     this.progressionManager = new ProgressionManager();
 
@@ -116,77 +125,103 @@ export class GameManager extends EventEmitter {
       () => (this.state.mode === 'VS_AI' ? 'ai' : '2p')
     );
 
+    // Hook audio events into the engine
     this.setupEngineAudio();
 
+    // 3. Setup Pixi UI Layers (Transparent overlay on top of 2D arena)
     this.hudLayer = new Container();
     this.modalLayer = new Container();
 
     app.stage.addChild(this.hudLayer);
     app.stage.addChild(this.modalLayer);
 
+    // Initial game state
     this.state = {
       phase: 'MENU',
       mode: 'VS_AI',
       aiDifficulty: 'normal',
       currentPlayer: 0,
       turnNumber: 1,
-      matchNumber: 1,
       scores: [0, 0],
-      streaks: [0, 0],
       roundFirstPlayer: 1,
       matchFormat: 'first_to_3',
       winsNeeded: 3,
-      equalLevels: true,
     };
 
+    // ── HUD ─────────────────────────────────────────────────────────
     this.hud = new HUD(app.screen.width, app.screen.height);
     this.hudLayer.addChild(this.hud.container);
 
-    this.hud.on('pause_click', () => {
-      soundManager.play('ui_click');
-      this.openPauseModal();
+    this.hud.on('pause_click', () => this.togglePauseMenu());
+    this.hud.on('sound_toggle', (enabled: boolean) => {
+      soundManager.setEnabled(enabled);
     });
 
+    // ── Center Banner Overlay ───────────────────────────────────────
+    this.bannerContainer = new Container();
+    this.bannerContainer.visible = false;
+    this.hudLayer.addChild(this.bannerContainer);
+
+    this.bannerBg = new Graphics();
+    this.bannerContainer.addChild(this.bannerBg);
+
+    const bannerTitleStyle = new TextStyle({
+      fontFamily: 'Fredoka, sans-serif',
+      fontSize: 32,
+      fill: COLORS.white,
+      stroke: { color: COLORS.textDark, width: 4 },
+      align: 'center',
+    });
+    this.bannerTitle = new Text({ text: '', style: bannerTitleStyle });
+    this.bannerTitle.anchor.set(0.5, 0.5);
+    this.bannerContainer.addChild(this.bannerTitle);
+
+    const bannerSubStyle = new TextStyle({
+      fontFamily: 'Nunito, sans-serif',
+      fontSize: 15,
+      fill: COLORS.cream,
+      align: 'center',
+    });
+    this.bannerSubtitle = new Text({ text: '', style: bannerSubStyle });
+    this.bannerSubtitle.anchor.set(0.5, 0.5);
+    this.bannerContainer.addChild(this.bannerSubtitle);
+
+    // ── Main Menu ───────────────────────────────────────────────────
     this.mainMenu = new MainMenu(app.screen.width, app.screen.height, this.progressionManager);
     this.modalLayer.addChild(this.mainMenu.container);
 
     this.mainMenu.on('play_click', () => {
-      soundManager.play('ui_click');
       this.mainMenu.hide();
       this.whoModal.show();
     });
     this.mainMenu.on('open_stats', () => {
-      soundManager.play('ui_click');
       this.statsModal.show();
     });
     this.mainMenu.on('open_leaderboard', () => {
-      soundManager.play('ui_click');
-      this.leaderboardModal.show();
+      this.statsModal.show();
     });
     this.mainMenu.on('open_settings', () => {
-      soundManager.play('ui_click');
       this.settingsModal.show();
     });
     this.mainMenu.on('open_help', () => {
-      soundManager.play('ui_click');
       this.howToPlayModal.show();
     });
 
+    // ── Who Is Playing Modal ────────────────────────────────────────
     this.whoModal = new WhoIsPlayingModal(app.screen.width, app.screen.height);
     this.modalLayer.addChild(this.whoModal.container);
 
     this.whoModal.on('back', () => {
-      soundManager.play('ui_click');
       this.whoModal.hide();
       this.mainMenu.show();
     });
     this.whoModal.on('select_mode', (mode: GameMode) => {
-      soundManager.play('ui_click');
       this.state.mode = mode;
       this.whoModal.hide();
       this.penModal.show(this.selectedPenIndices[0], mode, this.state.aiDifficulty);
     });
 
+    // ── Pen Selector Modal ──────────────────────────────────────────
     this.penModal = new PenSelectorModal(app.screen.width, app.screen.height, this.progressionManager);
     this.modalLayer.addChild(this.penModal.container);
 
@@ -196,7 +231,6 @@ export class GameManager extends EventEmitter {
     });
     this.penModal.on('start_fight', (opts: {
       penIndex: number;
-      p2PenIndex?: number;
       mode: GameMode;
       difficulty: AIDifficulty;
       look: 'real' | 'classic';
@@ -204,19 +238,9 @@ export class GameManager extends EventEmitter {
       equalLevels: boolean;
     }) => {
       this.selectedPenIndices[0] = opts.penIndex;
-      if (opts.mirror) {
-        this.selectedPenIndices[1] = opts.penIndex;
-      } else if (opts.mode === 'TWO_PLAYER' && typeof opts.p2PenIndex === 'number') {
-        this.selectedPenIndices[1] = opts.p2PenIndex;
-      } else {
-        let aiIdx = Math.floor(Math.random() * PENS_ROSTER.length);
-        if (aiIdx === opts.penIndex) aiIdx = (opts.penIndex + 1) % PENS_ROSTER.length;
-        this.selectedPenIndices[1] = aiIdx;
-      }
-
+      this.selectedPenIndices[1] = opts.mirror ? opts.penIndex : (opts.penIndex + 1) % PENS_ROSTER.length;
       this.state.mode = opts.mode;
       this.state.aiDifficulty = opts.difficulty;
-      this.state.equalLevels = opts.equalLevels;
       if (opts.look) {
         this.settingsModal.settings.penLook = opts.look;
       }
@@ -224,15 +248,18 @@ export class GameManager extends EventEmitter {
       this.startGame(this.selectedPenIndices[0], this.selectedPenIndices[1]);
     });
 
+    // ── Stats Modal ─────────────────────────────────────────────────
     this.statsModal = new StatsModal(app.screen.width, app.screen.height, this.progressionManager);
     this.modalLayer.addChild(this.statsModal.container);
 
     this.leaderboardModal = new LeaderboardModal(app.screen.width, app.screen.height, this.progressionManager);
     this.modalLayer.addChild(this.leaderboardModal.container);
 
+    // ── How To Play Modal ───────────────────────────────────────────
     this.howToPlayModal = new HowToPlayModal(app.screen.width, app.screen.height);
     this.modalLayer.addChild(this.howToPlayModal.container);
 
+    // ── Settings Modal ──────────────────────────────────────────────
     this.settingsModal = new SettingsModal(app.screen.width, app.screen.height);
     this.modalLayer.addChild(this.settingsModal.container);
 
@@ -241,27 +268,19 @@ export class GameManager extends EventEmitter {
     });
     this.applySettings(this.settingsModal.settings);
 
+    // ── Match Result Modal ──────────────────────────────────────────
     this.matchResultModal = new MatchResultModal(app.screen.width, app.screen.height);
     this.modalLayer.addChild(this.matchResultModal.container);
 
     this.matchResultModal.on('rematch', () => {
-      const seriesDone = this.checkMatchWin();
-      if (seriesDone) {
-        this.state.scores = [0, 0];
-        this.state.matchNumber = 1;
-        this.state.roundFirstPlayer = 1;
-      } else {
-        this.state.matchNumber++;
-        this.state.roundFirstPlayer = this.state.roundFirstPlayer === 1 ? 2 : 1;
-      }
+      this.state.scores = [0, 0];
+      this.state.roundFirstPlayer = 1;
       this.matchResultModal.hide();
-      this.hud.container.visible = true;
       this.startRound();
     });
 
     this.matchResultModal.on('change_pens', () => {
       this.matchResultModal.hide();
-      this.hud.container.visible = false;
       this.penModal.show(this.selectedPenIndices[0], this.state.mode, this.state.aiDifficulty);
     });
 
@@ -270,58 +289,24 @@ export class GameManager extends EventEmitter {
       this.showMainMenu();
     });
 
-    this.pauseModal = new PauseModal(app.screen.width, app.screen.height);
-    this.modalLayer.addChild(this.pauseModal.container);
-
-    this.pauseModal.on('resume', () => {
-      this.pauseModal.hide();
-      this.state.phase = 'PLAYER_TURN';
-    });
-    this.pauseModal.on('restart', () => {
-      this.pauseModal.hide();
-      this.startRound();
-    });
-    this.pauseModal.on('change_pens', () => {
-      this.pauseModal.hide();
-      this.hud.container.visible = false;
-      this.penModal.show(this.selectedPenIndices[0], this.state.mode, this.state.aiDifficulty);
-    });
-    this.pauseModal.on('fullscreen', () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen?.().catch(() => {});
-      } else {
-        document.exitFullscreen?.().catch(() => {});
-      }
-    });
-    this.pauseModal.on('settings', () => {
-      this.settingsModal.show();
-    });
-    this.pauseModal.on('help', () => {
-      this.howToPlayModal.show();
-    });
-    this.pauseModal.on('main_menu', () => {
-      this.pauseModal.hide();
-      this.showMainMenu();
-    });
-
+    // Initial resize to set geometry & canvas pixel ratio
     this.onResize();
+
+    // Listen to resize
     window.addEventListener('resize', () => this.onResize());
 
+    // 60-120fps Main Game Loop
     app.ticker.add((ticker) => this.update(ticker.deltaMS / 1000));
 
+    // Show Main Menu on start
     this.showMainMenu();
   }
 
   private setupEngineAudio(): void {
-    this.engine.onAimTick = (bucket: number) => {
-      soundManager.play('aim_tick', 0.4 + bucket * 0.15);
-      soundManager.haptic('light');
-    };
-
     this.engine.onHitSound = (intensity: number) => {
-      const sfx = intensity > 0.55 ? 'hit_heavy' : 'hit_light';
+      const sfx = intensity > 0.6 ? 'hit_heavy' : 'hit_light';
       soundManager.play(sfx, intensity);
-      soundManager.haptic(intensity > 0.55 ? 'heavy' : 'medium');
+      soundManager.haptic(intensity > 0.6 ? 'heavy' : 'medium');
     };
 
     this.engine.onFlickSound = (power: number) => {
@@ -335,20 +320,20 @@ export class GameManager extends EventEmitter {
       soundManager.haptic('heavy');
     };
 
-    this.engine.onRoundEnd = (winner: 0 | 1 | 2, _reason: string) => {
-      this.handleEngineRoundEnd(winner);
+    this.engine.onRoundEnd = (winner: 0 | 1 | 2, reason: string) => {
+      this.handleEngineRoundEnd(winner, reason);
     };
   }
 
   private applySettings(cfg: GameSettings): void {
     this.state.matchFormat = cfg.matchFormat;
     this.state.winsNeeded = cfg.matchFormat === 'first_to_5' ? 5 : 3;
-    this.state.equalLevels = cfg.equalLevels;
   }
 
   public showMainMenu(): void {
     this.state.phase = 'MENU';
     this.engine.aim.active = false;
+    this.bannerContainer.visible = false;
     this.hud.container.visible = false;
     this.whoModal.hide();
     this.penModal.hide();
@@ -356,15 +341,14 @@ export class GameManager extends EventEmitter {
     this.leaderboardModal.hide();
     this.howToPlayModal.hide();
     this.settingsModal.hide();
-    this.matchResultModal.hide();
-    this.pauseModal.hide();
     this.mainMenu.show();
 
+    // Render an idle desk background while in the menu
     this.renderMenuBackground();
   }
 
   private renderMenuBackground(): void {
-    const dpr = Math.max(2, Math.min(3, window.devicePixelRatio || 2));
+    const dpr = window.devicePixelRatio || 1;
     const w = window.innerWidth;
     const h = window.innerHeight;
 
@@ -380,14 +364,14 @@ export class GameManager extends EventEmitter {
       this.engine.startNewRound(p1, p2, 'ai', 1);
     }
 
-    ArenaRenderer.renderArena(this.arenaCtx, w, h, this.engine, deskStyle, penLook, this.settingsModal.settings.aimGuide, this.settingsModal.settings.reduceMotion);
+    ArenaRenderer.renderArena(this.arenaCtx, w, h, this.engine, deskStyle, penLook);
     this.arenaCtx.restore();
   }
 
-  public startGame(pen1Index = 0, pen2Index = 1): void {
+  /** Start a new match with the equipped pens */
+  public startGame(pen1Index = 0, pen2Index = 0): void {
     this.selectedPenIndices = [pen1Index, pen2Index];
     this.state.scores = [0, 0];
-    this.state.matchNumber = 1;
     this.state.roundFirstPlayer = 1;
     this.mainMenu.hide();
     this.hud.container.visible = true;
@@ -395,7 +379,9 @@ export class GameManager extends EventEmitter {
     this.startRound();
   }
 
+  /** Start a round within the current match */
   private startRound(): void {
+    this.bannerContainer.visible = false;
     this.hud.showWarning(false);
     this.hud.hideCountdown();
 
@@ -403,23 +389,13 @@ export class GameManager extends EventEmitter {
     const p2Spec = PENS_ROSTER[this.selectedPenIndices[1]] || PENS_ROSTER[1];
     const mode = this.state.mode === 'VS_AI' ? 'ai' : '2p';
 
-    const p1Lvl = this.progressionManager.getProgress(p1Spec.id).level;
-    const p2Lvl = this.progressionManager.getProgress(p2Spec.id).level;
-
-    this.engine.startNewRound(
-      p1Spec,
-      p2Spec,
-      mode,
-      this.state.roundFirstPlayer,
-      p1Lvl,
-      p2Lvl,
-      this.state.equalLevels
-    );
+    this.engine.startNewRound(p1Spec, p2Spec, mode, this.state.roundFirstPlayer);
     this.state.phase = 'PLAYER_TURN';
 
     this.hud.updateFromEngine(this.engine, mode, this.state.scores);
   }
 
+  /** Per-frame game loop */
   private update(dt: number): void {
     if (this.state.phase === 'MENU' || this.state.phase === 'PAUSED') return;
 
@@ -427,9 +403,11 @@ export class GameManager extends EventEmitter {
     const diff: 'easy' | 'normal' | 'hard' =
       this.state.aiDifficulty === 'hard' ? 'hard' : this.state.aiDifficulty === 'easy' ? 'easy' : 'normal';
 
+    // 1. Step the 60-120fps physics & AI engine
     this.engine.step(dt, mode, diff);
 
-    const dpr = Math.max(2, Math.min(3, window.devicePixelRatio || 2));
+    // 2. Render Arena using ArenaRenderer onto 2D canvas
+    const dpr = window.devicePixelRatio || 1;
     const w = window.innerWidth;
     const h = window.innerHeight;
 
@@ -439,70 +417,45 @@ export class GameManager extends EventEmitter {
     const deskStyle = (themeManager.prefs.deskTheme === 'old-school' || this.settingsModal.settings.deskStyle === 'old_school') ? 'old' : 'clean';
     const penLook = (themeManager.prefs.penLook || this.settingsModal.settings.penLook) === 'classic' ? 'classic' : 'real';
 
-    ArenaRenderer.renderArena(this.arenaCtx, w, h, this.engine, deskStyle, penLook, this.settingsModal.settings.aimGuide, this.settingsModal.settings.reduceMotion);
+    ArenaRenderer.renderArena(this.arenaCtx, w, h, this.engine, deskStyle, penLook);
     this.arenaCtx.restore();
 
+    // 3. Update Top HUD using TopHudUpdater
     this.hud.updateFromEngine(this.engine, mode, this.state.scores);
-    const cd = this.engine.getTurnCountdownStatus();
-    if (cd) {
-      this.hud.updateCountdown(cd.remainingSec, cd.ratio);
-    } else {
-      this.hud.hideCountdown();
-    }
   }
 
-  private handleEngineRoundEnd(winner: 0 | 1 | 2): void {
+  /** Handle round end emitted by PenFightEngine */
+  private handleEngineRoundEnd(winner: 0 | 1 | 2, reason: string): void {
     if (this.state.phase === 'ROUND_RESULT' || this.state.phase === 'MATCH_RESULT') return;
     this.state.phase = 'ROUND_RESULT';
 
-    let xpEarned = 20;
     if (winner === 1) {
       this.state.scores[0]++;
-      this.state.streaks[0]++;
-      this.state.streaks[1] = 0;
-      xpEarned = this.state.aiDifficulty === 'hard' ? 130 : this.state.aiDifficulty === 'normal' ? 80 : 40;
+      const title = this.state.mode === 'VS_AI' ? 'YOU WIN ROUND!' : 'PLAYER 1 WINS!';
+      this.showRoundBanner(title, reason);
       this.awardXP(true);
     } else if (winner === 2) {
       this.state.scores[1]++;
-      this.state.streaks[1]++;
-      this.state.streaks[0] = 0;
-      xpEarned = 20;
+      const title = this.state.mode === 'VS_AI' ? 'COMPUTER WINS ROUND!' : 'PLAYER 2 WINS!';
+      this.showRoundBanner(title, reason);
       this.awardXP(false);
     } else {
-      xpEarned = 20;
+      this.showRoundBanner('ROUND DRAW!', reason);
       this.awardXP(false);
     }
 
-    this.hud.updateFromEngine(this.engine, this.state.mode === 'VS_AI' ? 'ai' : '2p', this.state.scores);
-    const seriesComplete = this.checkMatchWin();
-
-    if (seriesComplete) {
-      soundManager.play(winner === 1 ? 'match_victory' : 'round_lose');
-    } else {
-      soundManager.play(winner === 1 ? 'round_win' : (this.state.mode === 'VS_AI' ? 'round_lose' : 'round_win'));
-    }
-
-    const p1Spec = PENS_ROSTER[this.selectedPenIndices[0]] || PENS_ROSTER[0];
-    const p2Spec = PENS_ROSTER[this.selectedPenIndices[1]] || PENS_ROSTER[1];
-    const nextStarter: 1 | 2 = this.state.roundFirstPlayer === 1 ? 2 : 1;
+    const matchEnded = this.checkMatchWin();
 
     setTimeout(() => {
-      this.state.phase = 'MATCH_RESULT';
-      this.matchResultModal.show({
-        winner,
-        matchNum: this.state.matchNumber,
-        seriesComplete,
-        nextStarter,
-        scores: [this.state.scores[0], this.state.scores[1]],
-        winsNeeded: this.state.winsNeeded,
-        mode: this.state.mode,
-        p1Pen: p1Spec,
-        p2Pen: p2Spec,
-        p1Streak: this.state.streaks[0],
-        p2Streak: this.state.streaks[1],
-        xpEarned
-      });
-    }, 650);
+      this.bannerContainer.visible = false;
+      if (matchEnded) {
+        this.showMatchResult();
+      } else {
+        // Switch who opens next round
+        this.state.roundFirstPlayer = this.state.roundFirstPlayer === 1 ? 2 : 1;
+        this.startRound();
+      }
+    }, 2200);
   }
 
   private awardXP(p1Won: boolean): void {
@@ -523,28 +476,65 @@ export class GameManager extends EventEmitter {
     );
   }
 
-  private openPauseModal(): void {
+  private showMatchResult(): void {
+    this.state.phase = 'MATCH_RESULT';
+    const p1Won = this.state.scores[0] >= this.state.winsNeeded;
+    const winnerName = p1Won
+      ? 'PLAYER 1'
+      : this.state.mode === 'VS_AI'
+      ? 'COMPUTER'
+      : 'PLAYER 2';
+
+    this.showRoundBanner(
+      `🏆 ${winnerName} WINS!`,
+      `Final Score: ${this.state.scores[0]} – ${this.state.scores[1]}\nTap anywhere to return to Menu`,
+    );
+
+    const restartHandler = () => {
+      this.canvasEl.removeEventListener('pointerdown', restartHandler);
+      this.showMainMenu();
+    };
+    setTimeout(() => {
+      this.canvasEl.addEventListener('pointerdown', restartHandler);
+    }, 1200);
+  }
+
+  private showRoundBanner(title: string, sub: string): void {
+    this.bannerTitle.text = title;
+    this.bannerSubtitle.text = sub;
+
+    const w = Math.min(this.app.screen.width - 40, 360);
+    const h = 110;
+
+    this.bannerBg.clear()
+      .roundRect(-w / 2, -h / 2, w, h, 18)
+      .fill({ color: 0x1A140E, alpha: 0.95 })
+      .stroke({ color: COLORS.accent, width: 3 });
+
+    this.bannerTitle.y = -16;
+    this.bannerSubtitle.y = 20;
+
+    this.bannerContainer.x = this.app.screen.width / 2;
+    this.bannerContainer.y = this.app.screen.height / 2;
+    this.bannerContainer.visible = true;
+  }
+
+  private togglePauseMenu(): void {
     if (this.state.phase === 'MENU') return;
-    this.state.phase = 'PAUSED';
-    this.pauseModal.show({
-      matchNum: this.state.matchNumber,
-      scores: [this.state.scores[0], this.state.scores[1]],
-      winsNeeded: this.state.winsNeeded,
-      mode: this.state.mode,
-      p1Streak: this.state.streaks[0],
-      p2Streak: this.state.streaks[1]
-    });
+    this.showMainMenu();
   }
 
   private onResize(): void {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    const dpr = Math.max(2, Math.min(3, window.devicePixelRatio || 2));
+    const dpr = window.devicePixelRatio || 1;
 
+    // Resize 2D Arena Canvas
     this.arenaCanvas.width = Math.round(w * dpr);
     this.arenaCanvas.height = Math.round(h * dpr);
     this.engine.updateDeskGeometry(w, h);
 
+    // Layout Pixi UI layers
     this.hud.layout(w, h);
     this.mainMenu.layout(w, h);
     this.whoModal.layout(w, h);
@@ -553,8 +543,9 @@ export class GameManager extends EventEmitter {
     this.statsModal.layout(w, h);
     this.leaderboardModal.layout(w, h);
     this.howToPlayModal.layout(w, h);
-    this.matchResultModal.layout(w, h);
-    this.pauseModal.layout(w, h);
+
+    this.bannerContainer.x = w / 2;
+    this.bannerContainer.y = h / 2;
 
     if (this.state.phase === 'MENU') {
       this.renderMenuBackground();

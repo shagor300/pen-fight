@@ -41,6 +41,10 @@ export class StatsModal extends EventEmitter {
     this.container.addChild(this.backdrop);
 
     this.cardContainer = new Container();
+    this.cardContainer.eventMode = 'static';
+    this.cardContainer.on('pointerdown', (e) => e.stopPropagation());
+    this.cardContainer.eventMode = 'static';
+    this.cardContainer.on('pointerdown', (e) => e.stopPropagation());
     this.container.addChild(this.cardContainer);
 
     this.layout();

@@ -1,22 +1,23 @@
+/**
+ * MatchResultModal.ts
+ * Skeuomorphic Match End Modal matching the reference video (end_t91.0s.png).
+ * Displays Series Complete, winner avatar box, series score inset card,
+ * win streaks, XP gain, and 3 chunky buttons: [🔄 Rematch], [✎ Change pens], [☰ Menu].
+ */
 import { Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import { COLORS } from '../config/gameConstants';
 import { PenSpec } from '../config/pensConfig';
 import { renderPenToCanvas } from '../rendering/RealPenRenderer';
-import { soundManager } from '../audio/SoundAndHaptics';
 import EventEmitter from 'eventemitter3';
 
 export interface MatchResultData {
-  winner: 0 | 1 | 2;
-  matchNum: number;
-  seriesComplete: boolean;
-  nextStarter: 1 | 2;
+  winner: 1 | 2; // 1 = You / Player 1, 2 = Computer / Player 2
   scores: [number, number];
   winsNeeded: number;
   mode: 'VS_AI' | 'TWO_PLAYER';
   p1Pen: PenSpec;
   p2Pen: PenSpec;
-  p1Streak: number;
-  p2Streak: number;
+  streak: number;
   xpEarned: number;
 }
 
@@ -30,10 +31,9 @@ export class MatchResultModal extends EventEmitter {
   private cardSurface: Graphics;
   private cardContent: Container;
 
+  // Cache for mini pen preview canvases
   private p1Canvas: HTMLCanvasElement;
-  private p1Ctx: CanvasRenderingContext2D;
   private p2Canvas: HTMLCanvasElement;
-  private p2Ctx: CanvasRenderingContext2D;
   private p1Sprite: Sprite;
   private p2Sprite: Sprite;
 
@@ -47,6 +47,7 @@ export class MatchResultModal extends EventEmitter {
     this.container = new Container();
     this.container.visible = false;
 
+    // Translucent dark scrim over the desk
     this.backdrop = new Graphics();
     this.backdrop.eventMode = 'static';
     this.container.addChild(this.backdrop);
@@ -60,17 +61,16 @@ export class MatchResultModal extends EventEmitter {
     this.cardContent = new Container();
     this.cardContainer.addChild(this.cardContent);
 
+    // Mini pen canvases
     this.p1Canvas = document.createElement('canvas');
-    this.p1Canvas.width = 400;
-    this.p1Canvas.height = 100;
-    this.p1Ctx = this.p1Canvas.getContext('2d')!;
+    this.p1Canvas.width = 160;
+    this.p1Canvas.height = 40;
     this.p1Sprite = Sprite.from(this.p1Canvas);
     this.p1Sprite.anchor.set(0.5, 0.5);
 
     this.p2Canvas = document.createElement('canvas');
-    this.p2Canvas.width = 400;
-    this.p2Canvas.height = 100;
-    this.p2Ctx = this.p2Canvas.getContext('2d')!;
+    this.p2Canvas.width = 160;
+    this.p2Canvas.height = 40;
     this.p2Sprite = Sprite.from(this.p2Canvas);
     this.p2Sprite.anchor.set(0.5, 0.5);
 
@@ -113,10 +113,13 @@ export class MatchResultModal extends EventEmitter {
     const h = 530;
     const r = 24;
 
+    // ── 1. Main Card Surface with 3D Shadow ──────────────────────────
     this.cardSurface.clear();
+    // 3D Shadow
     this.cardSurface
       .roundRect(-w / 2, -h / 2 + 7, w, h, r)
       .fill({ color: COLORS.navyShadow });
+    // Surface
     this.cardSurface
       .roundRect(-w / 2, -h / 2, w, h, r)
       .fill({ color: COLORS.cardCream })
@@ -125,6 +128,7 @@ export class MatchResultModal extends EventEmitter {
     const p1Won = this.data.winner === 1;
     const isAi = this.data.mode === 'VS_AI';
 
+    // ── 2. Top Header with Avatar Box ────────────────────────────────
     const topY = -h / 2 + 24;
     const avatarSize = 68;
     const avatarR = 18;
@@ -152,12 +156,10 @@ export class MatchResultModal extends EventEmitter {
     avBg.addChild(avIcon);
     this.cardContent.addChild(avatarBox);
 
+    // Header Text
     const headerTextX = -w / 2 + 22 + avatarSize + 16;
-    const headerLabel = this.data.seriesComplete
-      ? `SERIES COMPLETE · FIRST TO ${this.data.winsNeeded}`
-      : `MATCH ${this.data.matchNum} · FIRST TO ${this.data.winsNeeded}`;
     const seriesSubtitle = new Text({
-      text: headerLabel,
+      text: `SERIES COMPLETE · FIRST TO ${this.data.winsNeeded}`,
       style: new TextStyle({
         fontFamily: 'Nunito, sans-serif',
         fontSize: 10.5,
@@ -170,11 +172,9 @@ export class MatchResultModal extends EventEmitter {
     seriesSubtitle.y = topY + 6;
     this.cardContent.addChild(seriesSubtitle);
 
-    const winnerTitle = this.data.winner === 0
-      ? 'Match Draw (30 turns)'
-      : this.data.seriesComplete
-      ? (p1Won ? (isAi ? 'You take the series!' : 'Player 1 takes the series!') : (isAi ? 'The computer takes the series' : 'Player 2 takes the series'))
-      : (p1Won ? (isAi ? 'You take this one!' : 'Player 1 takes this one!') : (isAi ? 'The computer takes this one' : 'Player 2 takes this one'));
+    const winnerTitle = p1Won
+      ? (isAi ? 'You take the series!' : 'Player 1 takes the series!')
+      : (isAi ? 'The computer takes the series' : 'Player 2 takes the series');
 
     const titleText = new Text({
       text: winnerTitle,
@@ -191,6 +191,7 @@ export class MatchResultModal extends EventEmitter {
     titleText.y = topY + 24;
     this.cardContent.addChild(titleText);
 
+    // ── 3. Inset "SERIES SCORE" Card ─────────────────────────────────
     const scoreBoxY = topY + avatarSize + 22;
     const scoreBoxW = w - 44;
     const scoreBoxH = 96;
@@ -216,11 +217,12 @@ export class MatchResultModal extends EventEmitter {
     scoreTitle.y = scoreBoxY + 10;
     this.cardContent.addChild(scoreTitle);
 
+    // Score numbers and labels
     const scoreRow = new Container();
     scoreRow.y = scoreBoxY + 52;
 
     const p1Label = new Text({
-      text: isAi ? '• You' : '• P1',
+      text: '• You',
       style: new TextStyle({
         fontFamily: 'Fredoka, sans-serif',
         fontSize: 15,
@@ -272,7 +274,7 @@ export class MatchResultModal extends EventEmitter {
     scoreRow.addChild(p2Score);
 
     const p2Label = new Text({
-      text: isAi ? '• Computer' : '• P2',
+      text: isAi ? '• Computer' : '• Player 2',
       style: new TextStyle({
         fontFamily: 'Fredoka, sans-serif',
         fontSize: 15,
@@ -286,27 +288,11 @@ export class MatchResultModal extends EventEmitter {
 
     this.cardContent.addChild(scoreRow);
 
+    // ── 4. Win Streaks & XP Subtext ──────────────────────────────────
     const statsY = scoreBoxY + scoreBoxH + 16;
 
-    const nextStarterName = this.data.nextStarter === 1
-      ? (isAi ? 'You start the next match' : 'Player 1 starts the next match')
-      : (isAi ? 'Computer starts the next match' : 'Player 2 starts the next match');
-    const nextStarterTxt = new Text({
-      text: `• ${nextStarterName}`,
-      style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
-        fontSize: 11,
-        fill: this.data.nextStarter === 1 ? COLORS.peachOrange : COLORS.skyBlue,
-        fontWeight: '800',
-      })
-    });
-    nextStarterTxt.anchor.set(0.5, 0);
-    nextStarterTxt.x = 0;
-    nextStarterTxt.y = scoreBoxY + 74;
-    this.cardContent.addChild(nextStarterTxt);
-
     const streakText = new Text({
-      text: `🔥 Win streaks · ${isAi ? 'You' : 'Player 1'} ${this.data.p1Streak} · ${isAi ? 'Computer' : 'Player 2'} ${this.data.p2Streak}`,
+      text: `🔥 Win streaks · You ${p1Won ? this.data.streak : 0} · Computer ${!p1Won ? this.data.streak : 0}`,
       style: new TextStyle({
         fontFamily: 'Nunito, sans-serif',
         fontSize: 12,
@@ -333,32 +319,25 @@ export class MatchResultModal extends EventEmitter {
     xpText.y = statsY + 22;
     this.cardContent.addChild(xpText);
 
+    // Mini pens with "New series keeps the same pens"
     const penSubRow = new Container();
-    penSubRow.y = statsY + 48;
+    penSubRow.y = statsY + 46;
 
-    const c1 = document.createElement('canvas');
-    c1.width = 400; c1.height = 100;
-    const ctx1 = c1.getContext('2d')!;
-    ctx1.scale(2, 2);
-    renderPenToCanvas(ctx1, this.data.p1Pen, 100, 25, 0, 'real', 0.85, 1.0);
-    this.p1Sprite.texture = Texture.from(c1);
-    this.p1Sprite.texture.source?.update();
+    // Draw mini pens on offscreen canvas
+    const p1Ctx = this.p1Canvas.getContext('2d');
+    const p2Ctx = this.p2Canvas.getContext('2d');
+    if (p1Ctx) renderPenToCanvas(p1Ctx, this.data.p1Pen, this.p1Canvas.width / 2, this.p1Canvas.height / 2, 0);
+    if (p2Ctx) renderPenToCanvas(p2Ctx, this.data.p2Pen, this.p2Canvas.width / 2, this.p2Canvas.height / 2, 0);
+    this.p1Sprite.texture.update();
+    this.p2Sprite.texture.update();
 
-    const c2 = document.createElement('canvas');
-    c2.width = 400; c2.height = 100;
-    const ctx2 = c2.getContext('2d')!;
-    ctx2.scale(2, 2);
-    renderPenToCanvas(ctx2, this.data.p2Pen, 100, 25, Math.PI, 'real', 0.85, 1.0);
-    this.p2Sprite.texture = Texture.from(c2);
-    this.p2Sprite.texture.source?.update();
-
-    this.p1Sprite.scale.set(0.22);
+    this.p1Sprite.scale.set(0.42);
     this.p1Sprite.x = -115;
     this.p1Sprite.y = 0;
     penSubRow.addChild(this.p1Sprite);
 
     const keepText = new Text({
-      text: this.data.seriesComplete ? 'New series keeps the same pens' : 'Same pens. Fresh desk.',
+      text: 'New series keeps the same pens',
       style: new TextStyle({
         fontFamily: 'Nunito, sans-serif',
         fontSize: 11,
@@ -370,26 +349,27 @@ export class MatchResultModal extends EventEmitter {
     keepText.x = 0;
     penSubRow.addChild(keepText);
 
-    this.p2Sprite.scale.set(0.22);
+    this.p2Sprite.scale.set(0.42);
     this.p2Sprite.x = 115;
     this.p2Sprite.y = 0;
     penSubRow.addChild(this.p2Sprite);
 
     this.cardContent.addChild(penSubRow);
 
+    // ── 5. Action Buttons ────────────────────────────────────────────
     const btnW = w - 44;
     const btnH = 56;
     const buttonsY = statsY + 74;
 
+    // Button 1: Rematch (Primary Mint Green)
     const rematchBtn = this.createButton({
       w: btnW,
       h: btnH,
       color: 0xCDEAC0,
-      icon: this.data.seriesComplete ? '🔄' : '▷',
-      label: this.data.seriesComplete ? 'Play again' : 'Next match',
+      icon: '🔄',
+      label: 'Rematch',
       primary: true,
       onClick: () => {
-        soundManager.play('ui_click');
         this.hide();
         this.emit('rematch');
       }
@@ -398,6 +378,7 @@ export class MatchResultModal extends EventEmitter {
     rematchBtn.y = buttonsY;
     this.cardContent.addChild(rematchBtn);
 
+    // Bottom Row: [✎ Change pens] & [☰ Menu]
     const smallBtnW = (btnW - 12) / 2;
     const smallBtnH = 48;
     const smallBtnY = buttonsY + btnH + 12;
@@ -410,7 +391,6 @@ export class MatchResultModal extends EventEmitter {
       label: 'Change pens',
       primary: false,
       onClick: () => {
-        soundManager.play('ui_click');
         this.hide();
         this.emit('change_pens');
       }
@@ -427,7 +407,6 @@ export class MatchResultModal extends EventEmitter {
       label: 'Menu',
       primary: false,
       onClick: () => {
-        soundManager.play('ui_click');
         this.hide();
         this.emit('menu');
       }

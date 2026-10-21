@@ -1,11 +1,13 @@
 /**
  * src/rendering/ArenaRenderer.ts
- * Ultra-HD 2x-3x Retina Playground & School Desk Map Renderer.
- * Supports:
- * - "Old School Carved" Map ('old'): Rich dark vintage oak with a brass-edged 15cm ruler on the left,
- *   a two-tone pink/blue rubber eraser & pencil shavings on the right, a taped notebook formula note,
- *   carved Tic-Tac-Toe grid, carved 5-point star, "SK" emblem stamp, and fountain-pen blue ink stain.
- * - "Clean Tournament Oak" Map ('clean'): Sleek warm polished oak planks with subtle classroom carvings.
+ * Ultra-HD 3D Wooden School Desk Playground & Tactical Aim Renderer.
+ *
+ * Visual Upgrades:
+ * - Multi-layered 3D bevelled walnut/mahogany desk frame with outer drop shadow & inner recessed shadow.
+ * - Warm classroom overhead spotlight gradient, multi-plank oak color variation, wood knots,
+ *   deep carved top pencil groove with 3D specular lip.
+ * - Crisp Classroom Props & Carvings: 3D bevelled 15cm wooden ruler with shadow, two-tone rubber eraser
+ *   with shadow, taped formula scrap, carved Tic-Tac-Toe, 5-point Star, "SK" stamp, and blue ink blot.
  */
 import { PenFightEngine, PenBody, SHRINK_TURNS, CANCEL_PULL_PX } from '../physics/PenFightEngine';
 import { renderPenToCanvas } from './RealPenRenderer';
@@ -73,7 +75,7 @@ export class ArenaRenderer {
   }
 
   private static getOrBuildDeskTexture(w: number, h: number, deskStyle: 'clean' | 'old'): HTMLCanvasElement {
-    const texScale = Math.max(2, Math.min(3, window.devicePixelRatio || 2));
+    const texScale = 2;
     const key = `${Math.round(w)}x${Math.round(h)}_${deskStyle}_${texScale}`;
     if (this.cachedDeskCanvas && this.cachedDeskKey === key) {
       return this.cachedDeskCanvas;
@@ -85,64 +87,87 @@ export class ArenaRenderer {
     const c = off.getContext('2d')!;
     c.scale(texScale, texScale);
 
-    const woodGrad = c.createLinearGradient(0, 0, w, 0);
-    if (deskStyle === 'clean') {
-      woodGrad.addColorStop(0, '#d8b48e');
-      woodGrad.addColorStop(0.25, '#cfa77e');
-      woodGrad.addColorStop(0.5, '#d9b58f');
-      woodGrad.addColorStop(0.75, '#cca379');
-      woodGrad.addColorStop(1, '#d5af88');
-    } else {
-      woodGrad.addColorStop(0, '#ae8257');
-      woodGrad.addColorStop(0.35, '#9d7248');
-      woodGrad.addColorStop(0.7, '#91663d');
-      woodGrad.addColorStop(1, '#a47950');
-    }
-    c.fillStyle = woodGrad;
-    c.fillRect(0, 0, w, h);
-
+    // 1. Multi-plank rich oak/walnut base with subtle per-plank tone variation
     const plankCount = 5;
     const plankW = w / plankCount;
-    for (let p = 1; p < plankCount; p++) {
-      const px = Math.round(p * plankW);
-      c.fillStyle = 'rgba(65, 38, 15, 0.16)';
-      c.fillRect(px, 0, 1.4, h);
-      c.fillStyle = 'rgba(255, 244, 222, 0.13)';
-      c.fillRect(px + 1.4, 0, 1.8, h);
+    const cleanTones = ['#d9b38c', '#cfa57b', '#dbb68f', '#cda277', '#d6af86'];
+    const oldTones = ['#ab7e53', '#9d7046', '#a5784d', '#94673e', '#a1744a'];
+
+    for (let p = 0; p < plankCount; p++) {
+      const px = p * plankW;
+      const pGrad = c.createLinearGradient(px, 0, px + plankW, h);
+      const baseCol = deskStyle === 'clean' ? cleanTones[p % cleanTones.length] : oldTones[p % oldTones.length];
+      pGrad.addColorStop(0, baseCol);
+      pGrad.addColorStop(0.5, deskStyle === 'clean' ? '#dfb992' : '#b2855a');
+      pGrad.addColorStop(1, baseCol);
+      c.fillStyle = pGrad;
+      c.fillRect(px, 0, plankW + 1, h);
     }
 
-    c.strokeStyle = deskStyle === 'clean' ? 'rgba(115, 76, 42, 0.12)' : 'rgba(58, 33, 12, 0.22)';
-    c.lineWidth = 1.0;
-    for (let gx = 7; gx < w; gx += 10) {
+    // 2. Organic Wood Grain Fibers & Wood Knots
+    c.strokeStyle = deskStyle === 'clean' ? 'rgba(105, 65, 30, 0.13)' : 'rgba(52, 28, 10, 0.24)';
+    c.lineWidth = 1.05;
+    for (let gx = 6; gx < w; gx += 8.5) {
       c.beginPath();
       c.moveTo(gx, 0);
       c.bezierCurveTo(
-        gx + Math.sin(gx * 0.07) * 4.5,
+        gx + Math.sin(gx * 0.08) * 5.5,
         h * 0.33,
-        gx - Math.cos(gx * 0.06) * 4.5,
+        gx - Math.cos(gx * 0.07) * 5.5,
         h * 0.66,
-        gx + Math.sin(gx * 0.05) * 2,
+        gx + Math.sin(gx * 0.05) * 2.5,
         h
       );
       c.stroke();
     }
 
-    // Top horizontal pencil groove
-    c.fillStyle = 'rgba(58, 32, 12, 0.28)';
+    // Subtle wood knots
+    const knots = [
+      { x: w * 0.28, y: h * 0.32, rx: 8, ry: 18 },
+      { x: w * 0.72, y: h * 0.64, rx: 7, ry: 15 },
+    ];
+    for (const k of knots) {
+      c.save();
+      c.translate(k.x, k.y);
+      c.strokeStyle = deskStyle === 'clean' ? 'rgba(105, 65, 30, 0.16)' : 'rgba(48, 25, 8, 0.28)';
+      c.lineWidth = 1.1;
+      for (let r = 0.4; r <= 1.0; r += 0.3) {
+        c.beginPath();
+        c.ellipse(0, 0, k.rx * r, k.ry * r, 0.08, 0, Math.PI * 2);
+        c.stroke();
+      }
+      c.restore();
+    }
+
+    // 3. Bevelled Plank Seams
+    for (let p = 1; p < plankCount; p++) {
+      const px = Math.round(p * plankW);
+      c.fillStyle = 'rgba(55, 30, 10, 0.22)';
+      c.fillRect(px - 0.8, 0, 1.6, h);
+      c.fillStyle = 'rgba(255, 245, 225, 0.16)';
+      c.fillRect(px + 0.8, 0, 1.5, h);
+    }
+
+    // 4. Deep Carved Top Horizontal Pencil Groove
+    const grX = w * 0.20;
+    const grW = w * 0.60;
+    const grGrad = c.createLinearGradient(0, 13, 0, 22);
+    grGrad.addColorStop(0, 'rgba(38, 20, 6, 0.48)');
+    grGrad.addColorStop(0.6, 'rgba(65, 36, 14, 0.28)');
+    grGrad.addColorStop(1, 'rgba(255, 245, 225, 0.35)');
+    c.fillStyle = grGrad;
     c.beginPath();
-    c.roundRect(w * 0.22, 15, w * 0.56, 6, 3);
+    c.roundRect(grX, 14, grW, 7.5, 3.8);
     c.fill();
-    c.fillStyle = 'rgba(255, 255, 255, 0.16)';
-    c.fillRect(w * 0.23, 20.5, w * 0.54, 1.1);
 
-    // Classroom Desk Carvings & Props
+    // 5. Classroom Carvings & Props
     c.save();
-    const carveAlpha = deskStyle === 'old' ? 0.38 : 0.18;
-    c.strokeStyle = `rgba(54, 30, 10, ${carveAlpha})`;
-    c.fillStyle = `rgba(54, 30, 10, ${carveAlpha})`;
-    c.lineWidth = 1.4;
+    const carveAlpha = deskStyle === 'old' ? 0.40 : 0.20;
+    c.strokeStyle = `rgba(50, 26, 8, ${carveAlpha})`;
+    c.fillStyle = `rgba(50, 26, 8, ${carveAlpha})`;
+    c.lineWidth = 1.45;
 
-    // 1. Top-Right: Carved Tic-Tac-Toe Grid
+    // Top-Right: Carved Tic-Tac-Toe Grid
     const ttx = w - 66;
     const tty = 34;
     const tts = 30;
@@ -160,7 +185,7 @@ export class ArenaRenderer {
     c.moveTo(ttx + 8, tty + 2); c.lineTo(ttx + 2, tty + 8);
     c.stroke();
 
-    // 2. Bottom-Right: Carved 5-Point Star Doodle
+    // Bottom-Right: Carved 5-Point Star Doodle
     const stX = w - 46;
     const stY = h - 46;
     c.beginPath();
@@ -174,7 +199,7 @@ export class ArenaRenderer {
     c.closePath();
     c.stroke();
 
-    // 3. Bottom-Left: "SK" Square Logo Stamp
+    // Bottom-Left: "SK" Square Logo Stamp
     const skX = 20;
     const skY = h - 46;
     c.beginPath();
@@ -185,8 +210,8 @@ export class ArenaRenderer {
     c.textBaseline = 'middle';
     c.fillText('SK', skX + 12, skY + 12.5);
 
-    // 4. Lower-Middle: Fountain Pen Blue Ink Stain
-    c.fillStyle = deskStyle === 'old' ? 'rgba(29, 78, 216, 0.20)' : 'rgba(29, 78, 216, 0.09)';
+    // Lower-Middle: Fountain Pen Blue Ink Stain
+    c.fillStyle = deskStyle === 'old' ? 'rgba(29, 78, 216, 0.22)' : 'rgba(29, 78, 216, 0.11)';
     c.beginPath();
     c.arc(w * 0.46, h * 0.77, 10.5, 0, Math.PI * 2);
     c.fill();
@@ -197,15 +222,20 @@ export class ArenaRenderer {
     c.arc(w * 0.46 - 9, h * 0.77 - 6, 3.5, 0, Math.PI * 2);
     c.fill();
 
-    // 5. Rich Old School Desk Map Props (Brass-Edged Ruler, Two-Tone Eraser, Taped Note)
+    // Old School Carved Map Props (3D Ruler, Two-Tone Eraser, Taped Formula Scrap)
     if (deskStyle === 'old') {
-      // Left: Detailed Wooden/Brass 15cm Ruler
+      // Left: 3D Brass-Edged 15cm Ruler with drop shadow
       c.save();
-      c.translate(19, h * 0.46);
+      c.translate(21, h * 0.46);
       c.rotate(-Math.PI / 2 + 0.03);
-      c.fillStyle = 'rgba(234, 179, 8, 0.42)';
-      c.strokeStyle = 'rgba(92, 52, 16, 0.48)';
-      c.lineWidth = 1.2;
+      c.fillStyle = 'rgba(20, 12, 4, 0.22)';
+      c.beginPath();
+      c.roundRect(-64, -8, 132, 20, 3);
+      c.fill();
+
+      c.fillStyle = 'rgba(234, 179, 8, 0.48)';
+      c.strokeStyle = 'rgba(78, 42, 12, 0.55)';
+      c.lineWidth = 1.3;
       c.beginPath();
       c.roundRect(-66, -10, 132, 20, 3);
       c.fill();
@@ -213,51 +243,58 @@ export class ArenaRenderer {
       for (let rx = -60; rx <= 60; rx += 5) {
         c.beginPath();
         c.moveTo(rx, -10);
-        c.lineTo(rx, rx % 15 === 0 ? -2 : -6);
+        c.lineTo(rx, rx % 15 === 0 ? -2 : -5.5);
         c.stroke();
       }
       c.restore();
 
-      // Right: Two-Tone Pink/Blue Rubber Eraser & Pencil Shavings
+      // Right: Two-Tone Pink/Blue Rubber Eraser with shadow
       c.save();
-      c.translate(w - 24, h * 0.52);
+      c.translate(w - 25, h * 0.52);
       c.rotate(0.28);
-      c.fillStyle = 'rgba(244, 114, 182, 0.48)';
+      c.fillStyle = 'rgba(20, 12, 4, 0.22)';
+      c.beginPath();
+      c.roundRect(-10, -5, 24, 14, 2);
+      c.fill();
+
+      c.fillStyle = 'rgba(244, 114, 182, 0.56)';
       c.beginPath();
       c.roundRect(-12, -7, 15, 14, 2);
       c.fill();
-      c.fillStyle = 'rgba(59, 130, 246, 0.48)';
+      c.fillStyle = 'rgba(59, 130, 246, 0.56)';
       c.beginPath();
       c.roundRect(3, -7, 9, 14, 2);
       c.fill();
-      c.strokeStyle = 'rgba(43, 51, 62, 0.42)';
-      c.lineWidth = 1.1;
+      c.strokeStyle = 'rgba(43, 51, 62, 0.48)';
+      c.lineWidth = 1.2;
       c.strokeRect(-12, -7, 24, 14);
       c.restore();
 
-      // Top-Left Corner: Taped Notebook Paper Scrap
+      // Top-Left: Taped Notebook Formula Note
       c.save();
-      c.translate(38, 42);
-      c.rotate(-0.12);
-      c.fillStyle = 'rgba(254, 249, 195, 0.35)';
-      c.strokeStyle = 'rgba(113, 63, 18, 0.28)';
-      c.lineWidth = 1;
+      c.translate(40, 42);
+      c.rotate(-0.10);
+      c.fillStyle = 'rgba(254, 249, 195, 0.42)';
+      c.strokeStyle = 'rgba(113, 63, 18, 0.34)';
+      c.lineWidth = 1.1;
       c.beginPath();
-      c.roundRect(-22, -14, 44, 28, 3);
+      c.roundRect(-24, -14, 48, 28, 3);
       c.fill();
       c.stroke();
-      c.fillStyle = 'rgba(71, 85, 105, 0.45)';
-      c.font = '700 8px Nunito, sans-serif';
+      c.fillStyle = 'rgba(51, 65, 85, 0.55)';
+      c.font = '800 8.5px Nunito, sans-serif';
       c.fillText('F = m·a', 0, 1);
       c.restore();
     }
 
     c.restore();
 
-    const vig = c.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.36, w / 2, h / 2, Math.max(w, h) * 0.72);
-    vig.addColorStop(0, 'rgba(0,0,0,0)');
-    vig.addColorStop(1, 'rgba(38, 20, 6, 0.17)');
-    c.fillStyle = vig;
+    // 6. Warm Overhead Classroom Spotlight & Inner Edge Vignette
+    const light = c.createRadialGradient(w * 0.5, h * 0.42, 20, w * 0.5, h * 0.5, Math.max(w, h) * 0.72);
+    light.addColorStop(0, 'rgba(255, 250, 235, 0.14)');
+    light.addColorStop(0.55, 'rgba(0, 0, 0, 0)');
+    light.addColorStop(1, 'rgba(32, 16, 4, 0.24)');
+    c.fillStyle = light;
     c.fillRect(0, 0, w, h);
 
     this.cachedDeskCanvas = off;
@@ -272,26 +309,40 @@ export class ArenaRenderer {
     engine: PenFightEngine,
     deskStyle: 'clean' | 'old'
   ): void {
+    // Classroom floor backdrop
     ctx.fillStyle = '#f5edd6';
     ctx.fillRect(0, 0, canvasW, canvasH);
 
     const d = engine.outerDesk;
 
     ctx.save();
-    ctx.fillStyle = '#5c3a21';
-    ctx.strokeStyle = '#2b333e';
-    ctx.lineWidth = 3.5;
+    // 1. Deep Floor Drop Shadow under the Desk
+    ctx.fillStyle = 'rgba(25, 16, 8, 0.26)';
     ctx.beginPath();
-    ctx.roundRect(d.x - 6, d.y - 5, d.w + 12, d.h + 14, 22);
+    ctx.roundRect(d.x - 4, d.y + 4, d.w + 12, d.h + 14, 24);
+    ctx.fill();
+
+    // 2. 3D Walnut Outer Desk Bevel Frame
+    const frameGrad = ctx.createLinearGradient(d.x, d.y, d.x, d.y + d.h);
+    frameGrad.addColorStop(0, '#6d4527');
+    frameGrad.addColorStop(0.5, '#54331b');
+    frameGrad.addColorStop(1, '#3e2411');
+    ctx.fillStyle = frameGrad;
+    ctx.strokeStyle = '#2b333e';
+    ctx.lineWidth = 3.6;
+    ctx.beginPath();
+    ctx.roundRect(d.x - 7, d.y - 6, d.w + 14, d.h + 15, 22);
     ctx.fill();
     ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(212, 163, 106, 0.58)';
+    // 3. Warm Brass/Oak Inner Rim Highlight
+    ctx.strokeStyle = 'rgba(228, 182, 128, 0.62)';
     ctx.lineWidth = 1.6;
     ctx.beginPath();
     ctx.roundRect(d.x - 2, d.y - 1.5, d.w + 4, d.h + 5, 18);
     ctx.stroke();
 
+    // 4. Clip & Draw Desk Wood Surface
     ctx.beginPath();
     ctx.roundRect(d.x, d.y, d.w, d.h, 16);
     ctx.clip();
@@ -299,16 +350,21 @@ export class ArenaRenderer {
     const woodTex = this.getOrBuildDeskTexture(d.w, d.h, deskStyle);
     ctx.drawImage(woodTex, d.x, d.y, d.w, d.h);
 
+    // Inner recessed bevel shadow along the wood border
+    ctx.strokeStyle = 'rgba(38, 18, 5, 0.28)';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(d.x + 1, d.y + 1, d.w - 2, d.h - 2);
+
     if (engine.shrinkSteps > 0) {
       const b = engine.activeBounds;
-      ctx.fillStyle = 'rgba(28, 19, 14, 0.36)';
+      ctx.fillStyle = 'rgba(28, 19, 14, 0.38)';
       ctx.fillRect(d.x, d.y, d.w, b.y - d.y);
       ctx.fillRect(d.x, b.y + b.h, d.w, d.y + d.h - (b.y + b.h));
       ctx.fillRect(d.x, b.y, b.x - d.x, b.h);
       ctx.fillRect(b.x + b.w, b.y, d.x + d.w - (b.x + b.w), b.h);
 
       ctx.strokeStyle = '#9a3412';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2.6;
       ctx.setLineDash([9, 7]);
       ctx.beginPath();
       ctx.roundRect(b.x, b.y, b.w, b.h, 12);
@@ -583,4 +639,3 @@ export class ArenaRenderer {
     ctx.restore();
   }
 }
-
