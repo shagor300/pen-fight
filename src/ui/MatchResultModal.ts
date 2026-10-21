@@ -6,13 +6,17 @@ import { soundManager } from '../audio/SoundAndHaptics';
 import EventEmitter from 'eventemitter3';
 
 export interface MatchResultData {
-  winner: 1 | 2;
+  winner: 0 | 1 | 2;
+  matchNum: number;
+  seriesComplete: boolean;
+  nextStarter: 1 | 2;
   scores: [number, number];
   winsNeeded: number;
   mode: 'VS_AI' | 'TWO_PLAYER';
   p1Pen: PenSpec;
   p2Pen: PenSpec;
-  streak: number;
+  p1Streak: number;
+  p2Streak: number;
   xpEarned: number;
 }
 
@@ -149,8 +153,11 @@ export class MatchResultModal extends EventEmitter {
     this.cardContent.addChild(avatarBox);
 
     const headerTextX = -w / 2 + 22 + avatarSize + 16;
+    const headerLabel = this.data.seriesComplete
+      ? `SERIES COMPLETE · FIRST TO ${this.data.winsNeeded}`
+      : `MATCH ${this.data.matchNum} · FIRST TO ${this.data.winsNeeded}`;
     const seriesSubtitle = new Text({
-      text: `SERIES COMPLETE · FIRST TO ${this.data.winsNeeded}`,
+      text: headerLabel,
       style: new TextStyle({
         fontFamily: 'Nunito, sans-serif',
         fontSize: 10.5,
@@ -163,9 +170,11 @@ export class MatchResultModal extends EventEmitter {
     seriesSubtitle.y = topY + 6;
     this.cardContent.addChild(seriesSubtitle);
 
-    const winnerTitle = p1Won
-      ? (isAi ? 'You take the series!' : 'Player 1 takes the series!')
-      : (isAi ? 'The computer takes the series' : 'Player 2 takes the series');
+    const winnerTitle = this.data.winner === 0
+      ? 'Match Draw (30 turns)'
+      : this.data.seriesComplete
+      ? (p1Won ? (isAi ? 'You take the series!' : 'Player 1 takes the series!') : (isAi ? 'The computer takes the series' : 'Player 2 takes the series'))
+      : (p1Won ? (isAi ? 'You take this one!' : 'Player 1 takes this one!') : (isAi ? 'The computer takes this one' : 'Player 2 takes this one'));
 
     const titleText = new Text({
       text: winnerTitle,
@@ -279,8 +288,25 @@ export class MatchResultModal extends EventEmitter {
 
     const statsY = scoreBoxY + scoreBoxH + 16;
 
+    const nextStarterName = this.data.nextStarter === 1
+      ? (isAi ? 'You start the next match' : 'Player 1 starts the next match')
+      : (isAi ? 'Computer starts the next match' : 'Player 2 starts the next match');
+    const nextStarterTxt = new Text({
+      text: `• ${nextStarterName}`,
+      style: new TextStyle({
+        fontFamily: 'Nunito, sans-serif',
+        fontSize: 11,
+        fill: this.data.nextStarter === 1 ? COLORS.peachOrange : COLORS.skyBlue,
+        fontWeight: '800',
+      })
+    });
+    nextStarterTxt.anchor.set(0.5, 0);
+    nextStarterTxt.x = 0;
+    nextStarterTxt.y = scoreBoxY + 74;
+    this.cardContent.addChild(nextStarterTxt);
+
     const streakText = new Text({
-      text: `🔥 Win streaks · You ${p1Won ? this.data.streak : 0} · ${isAi ? 'Computer' : 'P2'} ${!p1Won ? this.data.streak : 0}`,
+      text: `🔥 Win streaks · ${isAi ? 'You' : 'Player 1'} ${this.data.p1Streak} · ${isAi ? 'Computer' : 'Player 2'} ${this.data.p2Streak}`,
       style: new TextStyle({
         fontFamily: 'Nunito, sans-serif',
         fontSize: 12,
@@ -323,7 +349,7 @@ export class MatchResultModal extends EventEmitter {
     penSubRow.addChild(this.p1Sprite);
 
     const keepText = new Text({
-      text: 'New series keeps the same pens',
+      text: this.data.seriesComplete ? 'New series keeps the same pens' : 'Same pens. Fresh desk.',
       style: new TextStyle({
         fontFamily: 'Nunito, sans-serif',
         fontSize: 11,
@@ -350,8 +376,8 @@ export class MatchResultModal extends EventEmitter {
       w: btnW,
       h: btnH,
       color: 0xCDEAC0,
-      icon: '🔄',
-      label: 'Rematch',
+      icon: this.data.seriesComplete ? '🔄' : '▷',
+      label: this.data.seriesComplete ? 'Play again' : 'Next match',
       primary: true,
       onClick: () => {
         soundManager.play('ui_click');

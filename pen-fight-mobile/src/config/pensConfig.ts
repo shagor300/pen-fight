@@ -1,7 +1,7 @@
 /**
  * pensConfig.ts
- * 8-Pen Roster with exact specs, dimensions, colors, and 1-5 star ratings
- * from "Desk Wars: Pen Fight" blueprint.
+ * 100% Authentic 8-Pen Roster with exact names, taglines, and 1-5 star ratings
+ * verified directly from https://shunneklabs.app/games/pen-fight/ (v1.5.1).
  */
 export interface PenSpec {
   id: string;
@@ -33,7 +33,7 @@ export interface PenSpec {
   };
   transparent: boolean;
   transparentBarrel: boolean;
-  styleType: 'ballpoint' | 'clicker' | '4colour' | 'gel' | 'metal' | 'highlighter' | 'marker' | 'spinner';
+  styleType: 'ballpoint' | 'gel' | 'marker' | '4colour' | 'highlighter' | 'clicker' | 'fountain' | 'metal';
   barrelText: string;
   shapeParts: string[];
 }
@@ -46,17 +46,17 @@ export const PENS_ROSTER: PenSpec[] = [
     name: 'Cheap Ballpoint',
     tagline: 'Long barrel. Smooth side flicks.',
     description: 'Long barrel. Smooth side flicks.',
-    stats: { weight: 2, speed: 4, spin: 3, grip: 3, reach: 4 },
-    lengthPx: 164,
+    stats: { weight: 2, speed: 5, spin: 4, grip: 2, reach: 5 },
+    lengthPx: 168,
     widthPx: 13,
-    dimensions: { widthMeters: 0.15, lengthMeters: 1.62 },
+    dimensions: { widthMeters: 0.13, lengthMeters: 1.68 },
     colors: {
       barrel: '#e2e8f0',
       cap: '#ea580c',
       grip: '#cbd5e1',
       tip: '#d97706',
       clip: '#ea580c',
-      ink: '#1e3a8a',
+      ink: '#1d4ed8',
       primary: '#e2e8f0',
       secondary: '#ea580c'
     },
@@ -64,17 +64,117 @@ export const PENS_ROSTER: PenSpec[] = [
     transparentBarrel: true,
     barrelText: 'BALL 0.7',
     styleType: 'ballpoint',
-    shapeParts: ['clear_hex_barrel', 'inner_ink_tube', 'vented_blue_cap', 'brass_cone_tip']
+    shapeParts: ['clear_hex_barrel', 'inner_ink_tube', 'vented_cap', 'brass_cone_tip']
+  },
+  {
+    id: 'gel-pen',
+    name: 'Gel Pen',
+    tagline: 'Gentle shots, easy to place.',
+    description: 'Gentle shots, easy to place.',
+    stats: { weight: 2, speed: 4, spin: 3, grip: 3, reach: 3 },
+    lengthPx: 154,
+    widthPx: 14,
+    dimensions: { widthMeters: 0.14, lengthMeters: 1.54 },
+    colors: {
+      barrel: '#bfdbfe',
+      cap: '#2563eb',
+      grip: '#1d4ed8',
+      tip: '#e2e8f0',
+      clip: '#3b82f6',
+      ink: '#1e40af',
+      primary: '#bfdbfe',
+      secondary: '#2563eb'
+    },
+    transparent: true,
+    transparentBarrel: true,
+    barrelText: 'GEL 0.5',
+    styleType: 'gel',
+    shapeParts: ['ribbed_rubber_finger_grip', 'fine_needle_tip']
+  },
+  {
+    id: 'marker',
+    name: 'Marker',
+    tagline: 'Broad hits with a steady stop.',
+    description: 'Broad hits with a steady stop.',
+    stats: { weight: 3, speed: 3, spin: 3, grip: 4, reach: 2 },
+    lengthPx: 146,
+    widthPx: 18,
+    dimensions: { widthMeters: 0.18, lengthMeters: 1.46 },
+    colors: {
+      barrel: '#f1f5f9',
+      cap: '#dc2626',
+      grip: '#ef4444',
+      tip: '#dc2626',
+      clip: '#b91c1c',
+      ink: '#dc2626',
+      primary: '#f1f5f9',
+      secondary: '#dc2626'
+    },
+    transparent: false,
+    transparentBarrel: false,
+    barrelText: 'MARKER',
+    styleType: 'marker',
+    shapeParts: ['broad_cylindrical_barrel', 'felt_chisel_tip']
+  },
+  {
+    id: '4-colour-pen',
+    name: '4-Colour Pen',
+    tagline: 'A chunky classic for steady, straight pushes.',
+    description: 'A chunky classic for steady, straight pushes.',
+    stats: { weight: 2, speed: 3, spin: 2, grip: 4, reach: 4 },
+    lengthPx: 158,
+    widthPx: 17,
+    dimensions: { widthMeters: 0.17, lengthMeters: 1.58 },
+    colors: {
+      barrel: '#f8fafc',
+      cap: '#2563eb',
+      grip: '#cbd5e1',
+      tip: '#e2e8f0',
+      clip: '#3b82f6',
+      ink: '#2563eb',
+      primary: '#f8fafc',
+      secondary: '#2563eb'
+    },
+    transparent: false,
+    transparentBarrel: false,
+    barrelText: '4-COLOUR',
+    styleType: '4colour',
+    shapeParts: ['chunky_two_tone_casing', 'four_color_selector_sliders']
+  },
+  {
+    id: 'highlighter',
+    name: 'Highlighter',
+    tagline: 'Wide flat body with strong desk grip.',
+    description: 'Wide flat body with strong desk grip.',
+    stats: { weight: 3, speed: 2, spin: 4, grip: 5, reach: 1 },
+    lengthPx: 136,
+    widthPx: 22,
+    dimensions: { widthMeters: 0.22, lengthMeters: 1.36 },
+    colors: {
+      barrel: '#facc15',
+      cap: '#eab308',
+      grip: '#ca8a04',
+      tip: '#fef08a',
+      clip: '#ca8a04',
+      ink: '#eab308',
+      primary: '#facc15',
+      secondary: '#eab308'
+    },
+    transparent: false,
+    transparentBarrel: false,
+    barrelText: 'NEON',
+    styleType: 'highlighter',
+    shapeParts: ['wide_flat_barrel', 'chisel_fluorescent_tip']
   },
   {
     id: 'click-pen',
     name: 'Click Pen',
     tagline: 'Quick mid-weight. Easy to steer.',
     description: 'Quick mid-weight. Easy to steer.',
-    stats: { weight: 3, speed: 4, spin: 3, grip: 4, reach: 3 },
-    lengthPx: 152,
+    stats: { weight: 2, speed: 5, spin: 5, grip: 1, reach: 2 },
+    lengthPx: 148,
     widthPx: 14,
-    dimensions: { widthMeters: 0.16, lengthMeters: 1.52 },
+    dimensions: { widthMeters: 0.14, lengthMeters: 1.48 },
     colors: {
       barrel: '#4d7c0f',
       cap: '#365314',
@@ -87,69 +187,44 @@ export const PENS_ROSTER: PenSpec[] = [
     },
     transparent: false,
     transparentBarrel: false,
-    barrelText: 'CLICK 1.0',
+    barrelText: 'CLICK',
     styleType: 'clicker',
-    shapeParts: ['plastic_grooved_body', 'plunger_button', 'steel_pocket_clip']
+    shapeParts: ['retractable_plunger', 'contoured_rubber_grip']
   },
   {
-    id: '4-colour-pen',
-    name: '4-Colour Pen',
-    tagline: 'A chunky classic for steady, straight pushes.',
-    description: 'A chunky classic for steady, straight pushes.',
-    stats: { weight: 4, speed: 3, spin: 2, grip: 4, reach: 3 },
-    lengthPx: 150,
-    widthPx: 18,
-    dimensions: { widthMeters: 0.20, lengthMeters: 1.50 },
+    id: 'fountain-pen',
+    name: 'Fountain Pen',
+    tagline: 'Classic nib with balanced spin.',
+    description: 'Classic nib with balanced spin.',
+    stats: { weight: 2, speed: 4, spin: 5, grip: 2, reach: 4 },
+    lengthPx: 160,
+    widthPx: 15,
+    dimensions: { widthMeters: 0.15, lengthMeters: 1.60 },
     colors: {
-      barrel: '#f8fafc',
-      cap: '#2563eb',
-      grip: '#f97316',
-      tip: '#cbd5e1',
-      clip: '#3b82f6',
-      ink: '#2563eb',
-      primary: '#f8fafc',
-      secondary: '#2563eb'
+      barrel: '#1e293b',
+      cap: '#0f172a',
+      grip: '#334155',
+      tip: '#f59e0b',
+      clip: '#fbbf24',
+      ink: '#1e3a8a',
+      primary: '#1e293b',
+      secondary: '#f59e0b'
     },
     transparent: false,
     transparentBarrel: false,
-    barrelText: '4-COLOR',
-    styleType: '4colour',
-    shapeParts: ['chunky_two_tone_casing', 'four_color_selector_sliders']
-  },
-  {
-    id: 'gel-pen',
-    name: 'Gel Pen',
-    tagline: 'Gentle shots, easy to place.',
-    description: 'Gentle shots, easy to place.',
-    stats: { weight: 2, speed: 5, spin: 4, grip: 3, reach: 3 },
-    lengthPx: 156,
-    widthPx: 14,
-    dimensions: { widthMeters: 0.15, lengthMeters: 1.56 },
-    colors: {
-      barrel: '#93c5fd',
-      cap: '#1d4ed8',
-      grip: '#1e40af',
-      tip: '#e2e8f0',
-      clip: '#3b82f6',
-      ink: '#1d4ed8',
-      primary: '#93c5fd',
-      secondary: '#1d4ed8'
-    },
-    transparent: true,
-    transparentBarrel: true,
-    barrelText: 'GEL 0.5',
-    styleType: 'gel',
-    shapeParts: ['ribbed_rubber_finger_grip', 'fine_needle_tip']
+    barrelText: 'FOUNTAIN',
+    styleType: 'fountain',
+    shapeParts: ['lacquered_barrel', 'gold_iridium_nib', 'gold_clip']
   },
   {
     id: 'metal-pen',
     name: 'Metal Pen',
     tagline: 'Steel barrel. Lively rebounds.',
     description: 'Steel barrel. Lively rebounds.',
-    stats: { weight: 5, speed: 3, spin: 3, grip: 5, reach: 3 },
+    stats: { weight: 4, speed: 4, spin: 3, grip: 1, reach: 3 },
     lengthPx: 154,
-    widthPx: 16,
-    dimensions: { widthMeters: 0.18, lengthMeters: 1.54 },
+    widthPx: 15,
+    dimensions: { widthMeters: 0.15, lengthMeters: 1.54 },
     colors: {
       barrel: '#94a3b8',
       cap: '#64748b',
@@ -164,82 +239,7 @@ export const PENS_ROSTER: PenSpec[] = [
     transparentBarrel: false,
     barrelText: 'STEEL',
     styleType: 'metal',
-    shapeParts: ['brushed_stainless_steel_body', 'nickel_clip']
-  },
-  {
-    id: 'yellow-highlighter',
-    name: 'Yellow Highlighter',
-    tagline: 'Wide flat body with strong desk grip.',
-    description: 'Wide flat body with strong desk grip.',
-    stats: { weight: 4, speed: 3, spin: 2, grip: 5, reach: 2 },
-    lengthPx: 142,
-    widthPx: 22,
-    dimensions: { widthMeters: 0.24, lengthMeters: 1.42 },
-    colors: {
-      barrel: '#facc15',
-      cap: '#ca8a04',
-      grip: '#eab308',
-      tip: '#fef08a',
-      clip: '#ca8a04',
-      ink: '#eab308',
-      primary: '#facc15',
-      secondary: '#ca8a04'
-    },
-    transparent: false,
-    transparentBarrel: false,
-    barrelText: 'HIGHLIGHT',
-    styleType: 'highlighter',
-    shapeParts: ['wide_oval_barrel', 'chunky_faceted_cap', 'chisel_fluorescent_tip']
-  },
-  {
-    id: 'dual-tip-marker',
-    name: 'Dual-Tip Marker',
-    tagline: 'Twin-capped marker built for helicopter spin.',
-    description: 'Twin-capped marker built for helicopter spin.',
-    stats: { weight: 3, speed: 3, spin: 5, grip: 2, reach: 4 },
-    lengthPx: 166,
-    widthPx: 16,
-    dimensions: { widthMeters: 0.17, lengthMeters: 1.66 },
-    colors: {
-      barrel: '#8b5cf6',
-      cap: '#5b21b6',
-      grip: '#4c1d95',
-      tip: '#ddd6fe',
-      clip: '#6d28d9',
-      ink: '#7c3aed',
-      primary: '#8b5cf6',
-      secondary: '#5b21b6'
-    },
-    transparent: false,
-    transparentBarrel: false,
-    barrelText: 'DUAL 2.0',
-    styleType: 'marker',
-    shapeParts: ['symmetrical_chubby_body', 'silicone_stylus_disc_tip']
-  },
-  {
-    id: 'long-mod-spinner',
-    name: 'Long Mod Spinner',
-    tagline: 'Balanced pen-mod with weighted silicone tips.',
-    description: 'Balanced pen-mod with weighted silicone tips.',
-    stats: { weight: 4, speed: 4, spin: 5, grip: 3, reach: 5 },
-    lengthPx: 182,
-    widthPx: 15,
-    dimensions: { widthMeters: 0.16, lengthMeters: 1.82 },
-    colors: {
-      barrel: '#f97316',
-      cap: '#1e293b',
-      grip: '#ea580c',
-      tip: '#fdba74',
-      clip: '#334155',
-      ink: '#f97316',
-      primary: '#f97316',
-      secondary: '#1e293b'
-    },
-    transparent: false,
-    transparentBarrel: false,
-    barrelText: 'SPIN PRO',
-    styleType: 'spinner',
-    shapeParts: ['extra_long_balanced_shaft', 'dual_weighted_rubber_collars']
+    shapeParts: ['brushed_stainless_steel_body', 'chrome_trim']
   }
 ];
 
@@ -268,6 +268,5 @@ export function deriveDampingFactor(configOrVal: PenSpec | number): number {
 
 export function deriveLengthPx(configOrVal: PenSpec | number): number {
   if (typeof configOrVal === 'number') return configOrVal;
-  return configOrVal.lengthPx || 150;
+  return configOrVal.lengthPx || 154;
 }
-

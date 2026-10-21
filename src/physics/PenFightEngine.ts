@@ -99,7 +99,6 @@ export class PenFightEngine {
   };
 
   public impactRings: ImpactRingEffect[] = [];
-  public sparks: ImpactSpark[] = [];
   public screenShake = 0;
   public simulationElapsedMs = 0;
   public turnToastTimerMs = 0;
@@ -168,7 +167,6 @@ export class PenFightEngine {
     this.activePlayer = startingPlayer;
     this.recalculateActiveBounds();
     this.impactRings = [];
-    this.sparks = [];
     this.screenShake = 0;
     this.aim.active = false;
     this.turnIdleSec = 0;
@@ -395,14 +393,6 @@ export class PenFightEngine {
       }
     }
 
-    for (let i = this.sparks.length - 1; i >= 0; i--) {
-      const sp = this.sparks[i];
-      sp.x += sp.vx * clampedDt;
-      sp.y += sp.vy * clampedDt;
-      sp.alpha -= clampedDt * 2.8;
-      if (sp.alpha <= 0) this.sparks.splice(i, 1);
-    }
-
     if (this.phase === 'AIMING') {
       if (!this.aim.active) {
         this.turnIdleSec += clampedDt;
@@ -530,18 +520,6 @@ export class PenFightEngine {
       else pen.omega -= Math.sign(pen.omega) * angularCoulomb;
 
       const linearSpeed = Math.hypot(pen.vx, pen.vy);
-
-      if (pen.level >= 2 && linearSpeed > 220 && Math.random() < 0.35) {
-        this.sparks.push({
-          x: pen.x + (Math.random() - 0.5) * 6,
-          y: pen.y + (Math.random() - 0.5) * 6,
-          vx: (Math.random() - 0.5) * 20,
-          vy: (Math.random() - 0.5) * 20,
-          color: pen.spec.colors.ink,
-          alpha: 0.55,
-          radius: 2.2
-        });
-      }
 
       if (
         (linearSpeed < 14 && Math.abs(pen.omega) < 0.35) ||
@@ -677,19 +655,6 @@ export class PenFightEngine {
           maxRadius: 18 + intensity * 18
         });
 
-        for (let i = 0; i < 10; i++) {
-          const ang = Math.random() * Math.PI * 2;
-          const spd = 60 + Math.random() * 190 * intensity;
-          this.sparks.push({
-            x: contactX,
-            y: contactY,
-            vx: Math.cos(ang) * spd,
-            vy: Math.sin(ang) * spd,
-            color: i % 2 === 0 ? '#facc15' : '#ffffff',
-            alpha: 0.95,
-            radius: 2 + Math.random() * 2
-          });
-        }
       }
     }
   }

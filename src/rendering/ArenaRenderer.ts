@@ -24,16 +24,6 @@ export class ArenaRenderer {
 
     this.drawSchoolDesk(ctx, canvasW, canvasH, engine, deskStyle);
 
-    for (const sp of engine.sparks) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, sp.alpha);
-      ctx.fillStyle = sp.color;
-      ctx.beginPath();
-      ctx.arc(sp.x, sp.y, sp.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
     for (const pen of engine.pens) {
       this.drawFloatingPenLabel(ctx, pen, engine);
     }

@@ -1,4 +1,10 @@
-import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
+/**
+ * GameManager.ts
+ * 100% Authentic Master Coordinator matching https://shunneklabs.app/games/pen-fight/ (v1.5.1).
+ * Connects MainMenu, WhoIsPlayingModal, PenSelectorModal, HUD, PauseModal,
+ * MatchResultModal (both Between-Match & Series Complete), SettingsModal, StatsModal, and HowToPlayModal.
+ */
+import { Application, Container } from 'pixi.js';
 import EventEmitter from 'eventemitter3';
 import { PenFightEngine } from '../physics/PenFightEngine';
 import { ArenaRenderer } from '../rendering/ArenaRenderer';
@@ -14,8 +20,9 @@ import { PenSelectorModal } from '../ui/PenSelectorModal';
 import { StatsModal } from '../ui/StatsModal';
 import { HowToPlayModal } from '../ui/HowToPlayModal';
 import { MatchResultModal } from '../ui/MatchResultModal';
+import { PauseModal } from '../ui/PauseModal';
 import { SettingsModal, GameSettings } from '../ui/SettingsModal';
-import { COLORS, MatchFormat } from '../config/gameConstants';
+import { MatchFormat } from '../config/gameConstants';
 
 export type GameMode = 'VS_AI' | 'TWO_PLAYER';
 export type AIDifficulty = 'easy' | 'normal' | 'hard';
@@ -35,7 +42,9 @@ export interface GameState {
   aiDifficulty: AIDifficulty;
   currentPlayer: 0 | 1;
   turnNumber: number;
+  matchNumber: number;
   scores: [number, number];
+  streaks: [number, number];
   roundFirstPlayer: 1 | 2;
   matchFormat: MatchFormat;
   winsNeeded: number;
@@ -64,14 +73,10 @@ export class GameManager extends EventEmitter {
   private statsModal: StatsModal;
   private howToPlayModal: HowToPlayModal;
   private matchResultModal: MatchResultModal;
+  private pauseModal: PauseModal;
 
   private selectedPenIndices: [number, number] = [0, 1];
   public state: GameState;
-
-  private bannerContainer: Container;
-  private bannerBg: Graphics;
-  private bannerTitle: Text;
-  private bannerSubtitle: Text;
 
   constructor(app: Application) {
     super();
@@ -123,7 +128,9 @@ export class GameManager extends EventEmitter {
       aiDifficulty: 'normal',
       currentPlayer: 0,
       turnNumber: 1,
+      matchNumber: 1,
       scores: [0, 0],
+      streaks: [0, 0],
       roundFirstPlayer: 1,
       matchFormat: 'first_to_3',
       winsNeeded: 3,
@@ -135,41 +142,8 @@ export class GameManager extends EventEmitter {
 
     this.hud.on('pause_click', () => {
       soundManager.play('ui_click');
-      this.togglePauseMenu();
+      this.openPauseModal();
     });
-    this.hud.on('sound_toggle', (enabled: boolean) => {
-      soundManager.setEnabled(enabled);
-      if (enabled) soundManager.play('ui_click');
-    });
-
-    this.bannerContainer = new Container();
-    this.bannerContainer.visible = false;
-    this.hudLayer.addChild(this.bannerContainer);
-
-    this.bannerBg = new Graphics();
-    this.bannerContainer.addChild(this.bannerBg);
-
-    const bannerTitleStyle = new TextStyle({
-      fontFamily: 'Fredoka, sans-serif',
-      fontSize: 28,
-      fill: COLORS.textDark,
-      fontWeight: 'bold',
-      align: 'center',
-    });
-    this.bannerTitle = new Text({ text: '', style: bannerTitleStyle });
-    this.bannerTitle.anchor.set(0.5, 0.5);
-    this.bannerContainer.addChild(this.bannerTitle);
-
-    const bannerSubStyle = new TextStyle({
-      fontFamily: 'Nunito, sans-serif',
-      fontSize: 14,
-      fill: COLORS.textMuted,
-      fontWeight: 'bold',
-      align: 'center',
-    });
-    this.bannerSubtitle = new Text({ text: '', style: bannerSubStyle });
-    this.bannerSubtitle.anchor.set(0.5, 0.5);
-    this.bannerContainer.addChild(this.bannerSubtitle);
 
     this.mainMenu = new MainMenu(app.screen.width, app.screen.height, this.progressionManager);
     this.modalLayer.addChild(this.mainMenu.container);
@@ -266,8 +240,15 @@ export class GameManager extends EventEmitter {
     this.modalLayer.addChild(this.matchResultModal.container);
 
     this.matchResultModal.on('rematch', () => {
-      this.state.scores = [0, 0];
-      this.state.roundFirstPlayer = 1;
+      const seriesDone = this.checkMatchWin();
+      if (seriesDone) {
+        this.state.scores = [0, 0];
+        this.state.matchNumber = 1;
+        this.state.roundFirstPlayer = 1;
+      } else {
+        this.state.matchNumber++;
+        this.state.roundFirstPlayer = this.state.roundFirstPlayer === 1 ? 2 : 1;
+      }
       this.matchResultModal.hide();
       this.hud.container.visible = true;
       this.startRound();
@@ -281,6 +262,40 @@ export class GameManager extends EventEmitter {
 
     this.matchResultModal.on('menu', () => {
       this.matchResultModal.hide();
+      this.showMainMenu();
+    });
+
+    this.pauseModal = new PauseModal(app.screen.width, app.screen.height);
+    this.modalLayer.addChild(this.pauseModal.container);
+
+    this.pauseModal.on('resume', () => {
+      this.pauseModal.hide();
+      this.state.phase = 'PLAYER_TURN';
+    });
+    this.pauseModal.on('restart', () => {
+      this.pauseModal.hide();
+      this.startRound();
+    });
+    this.pauseModal.on('change_pens', () => {
+      this.pauseModal.hide();
+      this.hud.container.visible = false;
+      this.penModal.show(this.selectedPenIndices[0], this.state.mode, this.state.aiDifficulty);
+    });
+    this.pauseModal.on('fullscreen', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+      } else {
+        document.exitFullscreen?.().catch(() => {});
+      }
+    });
+    this.pauseModal.on('settings', () => {
+      this.settingsModal.show();
+    });
+    this.pauseModal.on('help', () => {
+      this.howToPlayModal.show();
+    });
+    this.pauseModal.on('main_menu', () => {
+      this.pauseModal.hide();
       this.showMainMenu();
     });
 
@@ -315,8 +330,8 @@ export class GameManager extends EventEmitter {
       soundManager.haptic('heavy');
     };
 
-    this.engine.onRoundEnd = (winner: 0 | 1 | 2, reason: string) => {
-      this.handleEngineRoundEnd(winner, reason);
+    this.engine.onRoundEnd = (winner: 0 | 1 | 2, _reason: string) => {
+      this.handleEngineRoundEnd(winner);
     };
   }
 
@@ -329,7 +344,6 @@ export class GameManager extends EventEmitter {
   public showMainMenu(): void {
     this.state.phase = 'MENU';
     this.engine.aim.active = false;
-    this.bannerContainer.visible = false;
     this.hud.container.visible = false;
     this.whoModal.hide();
     this.penModal.hide();
@@ -337,6 +351,7 @@ export class GameManager extends EventEmitter {
     this.howToPlayModal.hide();
     this.settingsModal.hide();
     this.matchResultModal.hide();
+    this.pauseModal.hide();
     this.mainMenu.show();
 
     this.renderMenuBackground();
@@ -366,6 +381,7 @@ export class GameManager extends EventEmitter {
   public startGame(pen1Index = 0, pen2Index = 1): void {
     this.selectedPenIndices = [pen1Index, pen2Index];
     this.state.scores = [0, 0];
+    this.state.matchNumber = 1;
     this.state.roundFirstPlayer = 1;
     this.mainMenu.hide();
     this.hud.container.visible = true;
@@ -374,7 +390,6 @@ export class GameManager extends EventEmitter {
   }
 
   private startRound(): void {
-    this.bannerContainer.visible = false;
     this.hud.showWarning(false);
     this.hud.hideCountdown();
 
@@ -430,40 +445,58 @@ export class GameManager extends EventEmitter {
     }
   }
 
-  private handleEngineRoundEnd(winner: 0 | 1 | 2, reason: string): void {
+  private handleEngineRoundEnd(winner: 0 | 1 | 2): void {
     if (this.state.phase === 'ROUND_RESULT' || this.state.phase === 'MATCH_RESULT') return;
     this.state.phase = 'ROUND_RESULT';
 
+    let xpEarned = 30;
     if (winner === 1) {
       this.state.scores[0]++;
-      soundManager.play('round_win');
-      const title = this.state.mode === 'VS_AI' ? 'You take this round!' : 'Player 1 takes this round!';
-      this.showRoundBanner(title, `${reason}  ·  ${this.state.scores[0]} – ${this.state.scores[1]}`);
+      this.state.streaks[0]++;
+      this.state.streaks[1] = 0;
+      xpEarned = this.state.aiDifficulty === 'hard' ? 130 : this.state.aiDifficulty === 'normal' ? 80 : 40;
       this.awardXP(true);
     } else if (winner === 2) {
       this.state.scores[1]++;
-      soundManager.play(this.state.mode === 'VS_AI' ? 'round_lose' : 'round_win');
-      const title = this.state.mode === 'VS_AI' ? 'The computer takes this one' : 'Player 2 takes this round!';
-      this.showRoundBanner(title, `${reason}  ·  ${this.state.scores[0]} – ${this.state.scores[1]}`);
+      this.state.streaks[1]++;
+      this.state.streaks[0] = 0;
+      xpEarned = 30;
       this.awardXP(false);
     } else {
-      soundManager.play('round_lose');
-      this.showRoundBanner('Round Draw!', reason);
+      xpEarned = 30;
       this.awardXP(false);
     }
 
     this.hud.updateFromEngine(this.engine, this.state.mode === 'VS_AI' ? 'ai' : '2p', this.state.scores);
-    const matchEnded = this.checkMatchWin();
+    const seriesComplete = this.checkMatchWin();
+
+    if (seriesComplete) {
+      soundManager.play(winner === 1 ? 'match_victory' : 'round_lose');
+    } else {
+      soundManager.play(winner === 1 ? 'round_win' : (this.state.mode === 'VS_AI' ? 'round_lose' : 'round_win'));
+    }
+
+    const p1Spec = PENS_ROSTER[this.selectedPenIndices[0]] || PENS_ROSTER[0];
+    const p2Spec = PENS_ROSTER[this.selectedPenIndices[1]] || PENS_ROSTER[1];
+    const nextStarter: 1 | 2 = this.state.roundFirstPlayer === 1 ? 2 : 1;
 
     setTimeout(() => {
-      this.bannerContainer.visible = false;
-      if (matchEnded) {
-        this.showMatchResult();
-      } else {
-        this.state.roundFirstPlayer = this.state.roundFirstPlayer === 1 ? 2 : 1;
-        this.startRound();
-      }
-    }, 1850);
+      this.state.phase = 'MATCH_RESULT';
+      this.matchResultModal.show({
+        winner,
+        matchNum: this.state.matchNumber,
+        seriesComplete,
+        nextStarter,
+        scores: [this.state.scores[0], this.state.scores[1]],
+        winsNeeded: this.state.winsNeeded,
+        mode: this.state.mode,
+        p1Pen: p1Spec,
+        p2Pen: p2Spec,
+        p1Streak: this.state.streaks[0],
+        p2Streak: this.state.streaks[1],
+        xpEarned
+      });
+    }, 650);
   }
 
   private awardXP(p1Won: boolean): void {
@@ -484,52 +517,17 @@ export class GameManager extends EventEmitter {
     );
   }
 
-  private showMatchResult(): void {
-    this.state.phase = 'MATCH_RESULT';
-    const p1Won = this.state.scores[0] >= this.state.winsNeeded;
-    soundManager.play(p1Won ? 'match_victory' : 'round_lose');
-
-    const p1Spec = PENS_ROSTER[this.selectedPenIndices[0]] || PENS_ROSTER[0];
-    const p2Spec = PENS_ROSTER[this.selectedPenIndices[1]] || PENS_ROSTER[1];
-    const stats = this.progressionManager.getStats();
-
-    this.matchResultModal.show({
-      winner: p1Won ? 1 : 2,
+  private openPauseModal(): void {
+    if (this.state.phase === 'MENU') return;
+    this.state.phase = 'PAUSED';
+    this.pauseModal.show({
+      matchNum: this.state.matchNumber,
       scores: [this.state.scores[0], this.state.scores[1]],
       winsNeeded: this.state.winsNeeded,
       mode: this.state.mode,
-      p1Pen: p1Spec,
-      p2Pen: p2Spec,
-      streak: Math.max(1, stats.currentStreak),
-      xpEarned: p1Won ? 100 : 30
+      p1Streak: this.state.streaks[0],
+      p2Streak: this.state.streaks[1]
     });
-  }
-
-  private showRoundBanner(title: string, sub: string): void {
-    this.bannerTitle.text = title;
-    this.bannerSubtitle.text = sub;
-
-    const w = Math.min(this.app.screen.width - 36, 360);
-    const h = 98;
-
-    this.bannerBg.clear()
-      .roundRect(-w / 2, -h / 2 + 5, w, h, 20)
-      .fill({ color: COLORS.navyShadow })
-      .roundRect(-w / 2, -h / 2, w, h, 20)
-      .fill({ color: COLORS.cardCream })
-      .stroke({ color: COLORS.navyBorder, width: 3.2 });
-
-    this.bannerTitle.y = -14;
-    this.bannerSubtitle.y = 18;
-
-    this.bannerContainer.x = this.app.screen.width / 2;
-    this.bannerContainer.y = this.app.screen.height / 2;
-    this.bannerContainer.visible = true;
-  }
-
-  private togglePauseMenu(): void {
-    if (this.state.phase === 'MENU') return;
-    this.showMainMenu();
   }
 
   private onResize(): void {
@@ -549,9 +547,7 @@ export class GameManager extends EventEmitter {
     this.statsModal.layout(w, h);
     this.howToPlayModal.layout(w, h);
     this.matchResultModal.layout(w, h);
-
-    this.bannerContainer.x = w / 2;
-    this.bannerContainer.y = h / 2;
+    this.pauseModal.layout(w, h);
 
     if (this.state.phase === 'MENU') {
       this.renderMenuBackground();

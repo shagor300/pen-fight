@@ -1,7 +1,7 @@
 /**
  * RealPenRenderer.ts
- * 8-Layer Photorealistic Procedural Pen Renderer with World-Space Drop Shadows
- * and Bespoke Geometry for all 8 Pens in Desk Wars: Pen Fight.
+ * 100% Authentic 8-Layer Photorealistic Procedural Pen Renderer with World-Space Drop Shadows
+ * and Bespoke Geometry for all 8 Pens in Desk Wars: Pen Fight (shunneklabs.app/games/pen-fight/).
  */
 import { PenConfig } from '../config/pensConfig';
 
@@ -16,7 +16,7 @@ export function renderPenToCanvas(
   mode: 'real' | 'classic' = 'real',
   scale = 1.0,
   alpha = 1.0,
-  level = 1
+  _level = 1
 ): void {
   const L = (pen.lengthPx || (pen.dimensions ? pen.dimensions.lengthMeters * PIXELS_PER_METER : 154));
   const W = (pen.widthPx || (pen.dimensions ? pen.dimensions.widthMeters * PIXELS_PER_METER : 14));
@@ -36,7 +36,7 @@ export function renderPenToCanvas(
   ctx.globalAlpha = alpha;
 
   // LAYER 1: WORLD-SPACE SOFT DROP SHADOW (Drawn BEFORE rotating the pen
-  // so 360-degree helicopter spins never flip the shadow upside-down!)
+  // so 360-degree spins never flip the shadow upside-down)
   if (mode === 'real' && scale > 0.75) {
     ctx.save();
     ctx.translate(worldX + 3.5, worldY + 6.5);
@@ -53,16 +53,7 @@ export function renderPenToCanvas(
   ctx.scale(scale, scale);
   ctx.rotate(angleRad);
 
-  if (level >= 4) {
-    ctx.save();
-    ctx.strokeStyle = level >= 5 ? 'rgba(250, 204, 21, 0.75)' : 'rgba(56, 189, 248, 0.65)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.roundRect(-halfL - 2, -halfW - 2, L + 4, W + 4, halfW + 2);
-    ctx.stroke();
-    ctx.restore();
-  }
-
+  // CLASSIC VECTOR MODE
   if (mode === 'classic') {
     ctx.fillStyle = barrelColor;
     ctx.beginPath();
@@ -102,61 +93,76 @@ export function renderPenToCanvas(
   }
 
   // REAL MODE: 8-LAYER PHOTOREALISTIC BESPOKE PEN RENDERING
-  if (styleType === 'spinner') {
-    const shaftLen = L * 0.64;
+  if (styleType === 'fountain') {
+    const barrelStartX = -halfL * 0.78;
+    const coneStartX = halfL * 0.58;
+    const barrelLen = coneStartX - barrelStartX;
+
     ctx.fillStyle = barrelColor;
     ctx.beginPath();
-    ctx.roundRect(-shaftLen / 2, -halfW * 0.88, shaftLen, W * 0.88, 3);
+    ctx.roundRect(barrelStartX, -halfW, barrelLen, W, 4);
     ctx.fill();
 
+    // Gold center ring
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillRect(-4, -halfW, 4, W);
+
+    // Grip section
+    ctx.fillStyle = gripColor;
+    ctx.fillRect(halfL * 0.22, -halfW * 0.88, L * 0.18, W * 0.88);
+
+    // Fountain Pen Diamond Gold Nib & Breather Hole
+    const nibGrad = ctx.createLinearGradient(coneStartX, -halfW, halfL, halfW);
+    nibGrad.addColorStop(0, '#fef3c7');
+    nibGrad.addColorStop(0.5, '#f59e0b');
+    nibGrad.addColorStop(1, '#b45309');
+    ctx.fillStyle = nibGrad;
+    ctx.beginPath();
+    ctx.moveTo(coneStartX, -halfW * 0.65);
+    ctx.lineTo(halfL - 9, -halfW * 0.82);
+    ctx.lineTo(halfL, 0);
+    ctx.lineTo(halfL - 9, halfW * 0.82);
+    ctx.lineTo(coneStartX, halfW * 0.65);
+    ctx.closePath();
+    ctx.fill();
+
+    // Nib slit & breather hole
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(halfL - 12, 0);
+    ctx.lineTo(halfL, 0);
+    ctx.stroke();
     ctx.fillStyle = '#1e293b';
-    ctx.fillRect(-7, -halfW * 0.92, 14, W * 0.92);
-    ctx.fillStyle = '#facc15';
-    ctx.fillRect(-1.5, -halfW * 0.92, 3, W * 0.92);
+    ctx.beginPath();
+    ctx.arc(halfL - 12, 0, 1.5, 0, Math.PI * 2);
+    ctx.fill();
 
-    const collarLen = L * 0.16;
-    for (const dir of [-1, 1]) {
-      const startX = dir === -1 ? -halfL + 7 : halfL - 7 - collarLen;
-      ctx.fillStyle = capColor;
-      ctx.beginPath();
-      ctx.roundRect(startX, -halfW - 1.2, collarLen, W + 2.4, 3);
-      ctx.fill();
+    // Cap & Gold Clip
+    const capLen = L * 0.32;
+    ctx.fillStyle = capColor;
+    ctx.beginPath();
+    ctx.roundRect(-halfL + 4, -halfW - 1.4, capLen, W + 2.8, 4);
+    ctx.fill();
 
-      ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-      ctx.lineWidth = 1.2;
-      for (let rx = startX + 4; rx < startX + collarLen - 3; rx += 4) {
-        ctx.beginPath();
-        ctx.moveTo(rx, -halfW - 1);
-        ctx.lineTo(rx, halfW + 1);
-        ctx.stroke();
-      }
-
-      const tipX = dir === -1 ? -halfL : halfL - 7;
-      ctx.fillStyle = '#cbd5e1';
-      ctx.beginPath();
-      ctx.roundRect(tipX, -halfW * 0.75, 7, W * 0.75, 3);
-      ctx.fill();
-    }
+    ctx.fillStyle = clipColor;
+    ctx.beginPath();
+    ctx.roundRect(-halfL + 8, -halfW - 4.0, capLen * 0.76, 2.6, 1.3);
+    ctx.fill();
   } else if (styleType === 'marker') {
-    const bodyLen = L * 0.66;
+    const bodyLen = L * 0.68;
     ctx.fillStyle = barrelColor;
     ctx.beginPath();
     ctx.roundRect(-bodyLen / 2, -halfW, bodyLen, W, 4);
     ctx.fill();
 
-    ctx.fillStyle = '#cbd5e1';
-    ctx.fillRect(-bodyLen / 2 + 6, -halfW, 4, W);
-    ctx.fillRect(bodyLen / 2 - 10, -halfW, 4, W);
+    ctx.fillStyle = capColor;
+    ctx.fillRect(bodyLen / 2 - 12, -halfW, 4, W);
 
-    const capW = L * 0.20;
+    const capW = L * 0.28;
     ctx.fillStyle = capColor;
     ctx.beginPath();
     ctx.roundRect(-halfL, -halfW - 1.2, capW, W + 2.4, 4);
-    ctx.fill();
-
-    ctx.fillStyle = capColor;
-    ctx.beginPath();
-    ctx.roundRect(halfL - capW, -halfW - 0.8, capW - 4, W + 1.6, 4);
     ctx.fill();
 
     ctx.fillStyle = clipColor;
@@ -164,9 +170,19 @@ export function renderPenToCanvas(
     ctx.roundRect(-halfL + 4, -halfW - 3.6, capW * 0.75, 2.6, 1.2);
     ctx.fill();
 
+    // Broad Marker Felt Tip
+    ctx.fillStyle = '#334155';
+    ctx.beginPath();
+    ctx.moveTo(bodyLen / 2, -halfW * 0.85);
+    ctx.lineTo(halfL - 8, -halfW * 0.55);
+    ctx.lineTo(halfL - 8, halfW * 0.55);
+    ctx.lineTo(bodyLen / 2, halfW * 0.85);
+    ctx.closePath();
+    ctx.fill();
+
     ctx.fillStyle = tipColor;
     ctx.beginPath();
-    ctx.arc(halfL - 2, 0, halfW * 0.55, 0, Math.PI * 2);
+    ctx.roundRect(halfL - 9, -halfW * 0.42, 9, W * 0.42, 2);
     ctx.fill();
   } else if (styleType === 'highlighter') {
     const bodyStartX = -halfL * 0.58;
@@ -369,9 +385,10 @@ export function renderPenToCanvas(
     ctx.fill();
   }
 
+  // Barrel Micro-Typography
   ctx.save();
   ctx.font = '800 6.5px Nunito, sans-serif';
-  ctx.fillStyle = (pen.transparent || pen.transparentBarrel || styleType === '4colour' || styleType === 'highlighter')
+  ctx.fillStyle = (pen.transparent || pen.transparentBarrel || styleType === '4colour' || styleType === 'highlighter' || styleType === 'marker')
     ? 'rgba(30, 41, 59, 0.72)'
     : 'rgba(255, 255, 255, 0.78)';
   ctx.textAlign = 'center';
@@ -379,18 +396,7 @@ export function renderPenToCanvas(
   ctx.fillText(barrelLabel, -L * 0.06, 0.5);
   ctx.restore();
 
-  if (level >= 3) {
-    ctx.save();
-    ctx.fillStyle = '#facc15';
-    ctx.strokeStyle = '#2b302a';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(L * 0.08, 0, 3.8, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-  }
-
+  // 3D Cylindrical Shading & Specular Highlight
   const cylGrad = ctx.createLinearGradient(0, -halfW, 0, halfW);
   cylGrad.addColorStop(0, 'rgba(255, 255, 255, 0.34)');
   cylGrad.addColorStop(0.22, 'rgba(255, 255, 255, 0.54)');

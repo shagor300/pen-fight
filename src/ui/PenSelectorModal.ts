@@ -170,6 +170,12 @@ export class PenSelectorModal extends EventEmitter {
 
     const backBtn = this.createSquareButton('⇦', COLORS.butterYellow, () => {
       soundManager.play('ui_click');
+      if (this.mode === 'TWO_PLAYER' && this.pickingForPlayer === 2) {
+        this.pickingForPlayer = 1;
+        this.layout();
+        this.updateCard();
+        return;
+      }
       this.hide();
       this.emit('back');
     });
@@ -184,7 +190,10 @@ export class PenSelectorModal extends EventEmitter {
       stroke: { color: COLORS.navyBorder, width: 4 },
       fontWeight: 'bold',
     });
-    const headerTitle = new Text({ text: 'Pick your pen', style: titleStyle });
+    const headerStr = this.mode === 'TWO_PLAYER'
+      ? `Pick your pen,\nPlayer ${this.pickingForPlayer}`
+      : 'Pick your pen';
+    const headerTitle = new Text({ text: headerStr, style: titleStyle });
     headerTitle.anchor.set(0, 0.5);
     headerTitle.x = 80;
     headerTitle.y = topY + 22;
@@ -265,6 +274,9 @@ export class PenSelectorModal extends EventEmitter {
     this.controlsContainer.y = this.mainCard.y + cardH / 2 + 14;
     this.buildControls(cardW);
 
+    this.container.removeChild(this.fightBtn);
+    this.fightBtn = this.createFightButton();
+    this.container.addChild(this.fightBtn);
     this.fightBtn.x = screenWidth / 2;
     this.fightBtn.y = Math.min(screenHeight - 48, this.controlsContainer.y + 150);
   }
@@ -421,81 +433,26 @@ export class PenSelectorModal extends EventEmitter {
 
       this.controlsContainer.addChild(diffRow);
     } else {
-      const pLabel = new Text({
-        text: 'SELECT PEN FOR PLAYER',
-        style: new TextStyle({
-          fontFamily: 'Nunito, sans-serif',
-          fontSize: 11,
-          fill: 0xD6CDBA,
-          fontWeight: '800',
-          letterSpacing: 1.5,
-        })
-      });
-      pLabel.anchor.set(0.5, 0);
-      pLabel.y = 0;
-      this.controlsContainer.addChild(pLabel);
-
-      const tabRow = new Container();
-      tabRow.y = 20;
-      const tabW = (w - 12) / 2;
-      const tabH = 38;
-
-      const p1PenName = PENS_ROSTER[this.selectedIndex]?.name || 'Pen 1';
-      const p2PenName = PENS_ROSTER[this.p2SelectedIndex]?.name || 'Pen 2';
-
-      const p1Tab = new Container();
-      p1Tab.x = -w / 2 + tabW / 2;
-      p1Tab.eventMode = 'static';
-      p1Tab.cursor = 'pointer';
-      const p1Sel = this.pickingForPlayer === 1;
-      p1Tab.addChild(
+      const namePill = new Container();
+      namePill.x = -w / 2;
+      namePill.y = 14;
+      const pillW = 168;
+      const pillH = 34;
+      namePill.addChild(
         new Graphics()
-          .roundRect(-tabW / 2, 0, tabW, tabH, 12)
-          .fill({ color: p1Sel ? COLORS.peachOrange : COLORS.cardCream })
-          .stroke({ color: COLORS.navyBorder, width: p1Sel ? 2.8 : 2 })
+          .roundRect(0, 0, pillW, pillH, 10)
+          .fill({ color: COLORS.cardCream })
+          .stroke({ color: COLORS.navyBorder, width: 2 })
       );
-      const p1Txt = new Text({
-        text: `P1: ${p1PenName}`,
-        style: new TextStyle({ fontFamily: 'Fredoka, sans-serif', fontSize: 12, fill: COLORS.textDark, fontWeight: 'bold' })
+      const nameTxt = new Text({
+        text: `✎ Player ${this.pickingForPlayer}  |  Change name`,
+        style: new TextStyle({ fontFamily: 'Nunito, sans-serif', fontSize: 11.5, fill: COLORS.textDark, fontWeight: 'bold' })
       });
-      p1Txt.anchor.set(0.5, 0.5);
-      p1Txt.y = tabH / 2;
-      p1Tab.addChild(p1Txt);
-      p1Tab.on('pointerdown', () => {
-        soundManager.play('ui_click');
-        this.pickingForPlayer = 1;
-        this.buildControls(w);
-        this.updateCard();
-      });
-      tabRow.addChild(p1Tab);
-
-      const p2Tab = new Container();
-      p2Tab.x = w / 2 - tabW / 2;
-      p2Tab.eventMode = 'static';
-      p2Tab.cursor = 'pointer';
-      const p2Sel = this.pickingForPlayer === 2;
-      p2Tab.addChild(
-        new Graphics()
-          .roundRect(-tabW / 2, 0, tabW, tabH, 12)
-          .fill({ color: p2Sel ? COLORS.skyBlue : COLORS.cardCream })
-          .stroke({ color: COLORS.navyBorder, width: p2Sel ? 2.8 : 2 })
-      );
-      const p2Txt = new Text({
-        text: `P2: ${p2PenName}`,
-        style: new TextStyle({ fontFamily: 'Fredoka, sans-serif', fontSize: 12, fill: COLORS.textDark, fontWeight: 'bold' })
-      });
-      p2Txt.anchor.set(0.5, 0.5);
-      p2Txt.y = tabH / 2;
-      p2Tab.addChild(p2Txt);
-      p2Tab.on('pointerdown', () => {
-        soundManager.play('ui_click');
-        this.pickingForPlayer = 2;
-        this.buildControls(w);
-        this.updateCard();
-      });
-      tabRow.addChild(p2Tab);
-
-      this.controlsContainer.addChild(tabRow);
+      nameTxt.anchor.set(0, 0.5);
+      nameTxt.x = 10;
+      nameTxt.y = pillH / 2;
+      namePill.addChild(nameTxt);
+      this.controlsContainer.addChild(namePill);
     }
 
     const optsRow = new Container();
@@ -604,19 +561,21 @@ export class PenSelectorModal extends EventEmitter {
     playIcon.y = h / 2 - 1;
     content.addChild(playIcon);
 
+    const isStep1TwoPlayer = this.mode === 'TWO_PLAYER' && this.pickingForPlayer === 1 && !this.mirrorMatch;
     const label = new Text({
-      text: 'Fight',
+      text: isStep1TwoPlayer ? 'Next: P2 picks' : 'Fight',
       style: new TextStyle({
         fontFamily: 'Fredoka, Nunito, sans-serif',
-        fontSize: 30,
+        fontSize: isStep1TwoPlayer ? 24 : 30,
         fill: COLORS.textDark,
         fontWeight: 'bold',
-        letterSpacing: 1,
+        letterSpacing: 0.5,
       })
     });
-    label.anchor.set(0, 0.5);
-    label.x = 4;
+    label.anchor.set(0.5, 0.5);
+    label.x = 12;
     label.y = h / 2 - 1;
+    playIcon.x = label.x - label.width / 2 - 8;
     content.addChild(label);
 
     surface.addChild(content);
@@ -625,6 +584,12 @@ export class PenSelectorModal extends EventEmitter {
     btn.on('pointerup', () => {
       surface.y = 0;
       soundManager.play('ui_click');
+      if (this.mode === 'TWO_PLAYER' && this.pickingForPlayer === 1 && !this.mirrorMatch) {
+        this.pickingForPlayer = 2;
+        this.layout();
+        this.updateCard();
+        return;
+      }
       this.hide();
       this.emit('start_fight', {
         penIndex: this.selectedIndex,
