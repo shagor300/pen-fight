@@ -1,3 +1,13 @@
+/**
+ * ArenaRenderer.ts
+ * 100% Authentic Ultra-HD Retina Playground & Desk Renderer matching https://shunneklabs.app/games/pen-fight/.
+ * Features:
+ * - Warm cream outer background (#f5edd6)
+ * - Dark wooden desk frame with bronze/gold inner trim & 2x-3x Retina supersampled wood grain
+ * - Authentic classroom desk carvings & details (left ruler markings, right pencil/eraser,
+ *   top-right tic-tac-toe grid, bottom-right carved star, bottom-left SK stamp, lower-middle blue ink blot)
+ * - 8-Spike Dark Starburst Impact Ring & Thermometer Slingshot Gauge
+ */
 import { PenFightEngine, PenBody, SHRINK_TURNS, CANCEL_PULL_PX } from '../physics/PenFightEngine';
 import { renderPenToCanvas } from './RealPenRenderer';
 
@@ -11,12 +21,14 @@ export class ArenaRenderer {
     canvasH: number,
     engine: PenFightEngine,
     deskStyle: 'clean' | 'old',
-    penLook: 'real' | 'classic'
+    penLook: 'real' | 'classic',
+    showAimGuide = true,
+    reduceMotion = false
   ): void {
     ctx.clearRect(0, 0, canvasW, canvasH);
 
     ctx.save();
-    if (engine.screenShake > 0.25) {
+    if (!reduceMotion && engine.screenShake > 0.25) {
       const sx = (Math.random() - 0.5) * engine.screenShake;
       const sy = (Math.random() - 0.5) * engine.screenShake;
       ctx.translate(sx, sy);
@@ -50,7 +62,7 @@ export class ArenaRenderer {
     if (engine.aim.active && (engine.phase === 'AIMING' || engine.phase === 'AI_PULLING')) {
       const activePen = engine.pens[engine.aim.penIndex];
       if (activePen) {
-        this.drawThermometerAimGauge(ctx, activePen, engine);
+        this.drawThermometerAimGauge(ctx, activePen, engine, showAimGuide);
       }
     }
 
@@ -62,16 +74,19 @@ export class ArenaRenderer {
   }
 
   private static getOrBuildDeskTexture(w: number, h: number, deskStyle: 'clean' | 'old'): HTMLCanvasElement {
-    const key = `${Math.round(w)}x${Math.round(h)}_${deskStyle}`;
+    const texScale = Math.max(2, Math.min(3, window.devicePixelRatio || 2));
+    const key = `${Math.round(w)}x${Math.round(h)}_${deskStyle}_${texScale}`;
     if (this.cachedDeskCanvas && this.cachedDeskKey === key) {
       return this.cachedDeskCanvas;
     }
 
     const off = document.createElement('canvas');
-    off.width = Math.max(1, Math.round(w));
-    off.height = Math.max(1, Math.round(h));
+    off.width = Math.max(1, Math.round(w * texScale));
+    off.height = Math.max(1, Math.round(h * texScale));
     const c = off.getContext('2d')!;
+    c.scale(texScale, texScale);
 
+    // Rich polished school desk wood surface
     const woodGrad = c.createLinearGradient(0, 0, w, 0);
     if (deskStyle === 'clean') {
       woodGrad.addColorStop(0, '#d8b48e');
@@ -80,33 +95,35 @@ export class ArenaRenderer {
       woodGrad.addColorStop(0.75, '#cca379');
       woodGrad.addColorStop(1, '#d5af88');
     } else {
-      woodGrad.addColorStop(0, '#b88f68');
-      woodGrad.addColorStop(0.35, '#a87e56');
-      woodGrad.addColorStop(0.7, '#9c724b');
-      woodGrad.addColorStop(1, '#ae845c');
+      woodGrad.addColorStop(0, '#b58960');
+      woodGrad.addColorStop(0.35, '#a47951');
+      woodGrad.addColorStop(0.7, '#986d46');
+      woodGrad.addColorStop(1, '#ab8058');
     }
     c.fillStyle = woodGrad;
     c.fillRect(0, 0, w, h);
 
+    // Vertical wood planks & highlights
     const plankCount = 5;
     const plankW = w / plankCount;
     for (let p = 1; p < plankCount; p++) {
       const px = Math.round(p * plankW);
-      c.fillStyle = 'rgba(65, 38, 15, 0.16)';
-      c.fillRect(px, 0, 1.5, h);
-      c.fillStyle = 'rgba(255, 240, 215, 0.12)';
-      c.fillRect(px + 1.5, 0, 2, h);
+      c.fillStyle = 'rgba(65, 38, 15, 0.15)';
+      c.fillRect(px, 0, 1.4, h);
+      c.fillStyle = 'rgba(255, 244, 222, 0.13)';
+      c.fillRect(px + 1.4, 0, 1.8, h);
     }
 
-    c.strokeStyle = deskStyle === 'clean' ? 'rgba(115, 76, 42, 0.13)' : 'rgba(68, 40, 18, 0.22)';
-    c.lineWidth = 1.2;
-    for (let gx = 8; gx < w; gx += 11) {
+    // Fine organic wood grain fibers
+    c.strokeStyle = deskStyle === 'clean' ? 'rgba(115, 76, 42, 0.12)' : 'rgba(64, 38, 16, 0.20)';
+    c.lineWidth = 1.0;
+    for (let gx = 7; gx < w; gx += 10) {
       c.beginPath();
       c.moveTo(gx, 0);
       c.bezierCurveTo(
-        gx + Math.sin(gx * 0.07) * 5,
+        gx + Math.sin(gx * 0.07) * 4.5,
         h * 0.33,
-        gx - Math.cos(gx * 0.06) * 5,
+        gx - Math.cos(gx * 0.06) * 4.5,
         h * 0.66,
         gx + Math.sin(gx * 0.05) * 2,
         h
@@ -114,49 +131,103 @@ export class ArenaRenderer {
       c.stroke();
     }
 
-    c.fillStyle = 'rgba(65, 38, 16, 0.26)';
+    // Top horizontal pencil groove
+    c.fillStyle = 'rgba(65, 38, 16, 0.24)';
     c.beginPath();
-    c.roundRect(w * 0.22, 16, w * 0.56, 6, 3);
+    c.roundRect(w * 0.22, 15, w * 0.56, 5.5, 3);
     c.fill();
     c.fillStyle = 'rgba(255, 255, 255, 0.16)';
-    c.fillRect(w * 0.23, 21, w * 0.54, 1.2);
+    c.fillRect(w * 0.23, 20, w * 0.54, 1.1);
 
+    // Authentic Classroom Carvings & Doodles (verified from shunneklabs.app/games/pen-fight/)
+    c.save();
+    const carveAlpha = deskStyle === 'old' ? 0.34 : 0.16;
+    c.strokeStyle = `rgba(58, 34, 14, ${carveAlpha})`;
+    c.fillStyle = `rgba(58, 34, 14, ${carveAlpha})`;
+    c.lineWidth = 1.35;
+
+    // 1. Top-Right: Carved Tic-Tac-Toe Grid
+    const ttx = w - 68;
+    const tty = 36;
+    const tts = 28;
+    c.beginPath();
+    c.moveTo(ttx + 9, tty); c.lineTo(ttx + 9, tty + tts);
+    c.moveTo(ttx + 19, tty); c.lineTo(ttx + 19, tty + tts);
+    c.moveTo(ttx, tty + 9); c.lineTo(ttx + tts, tty + 9);
+    c.moveTo(ttx, tty + 19); c.lineTo(ttx + tts, tty + 19);
+    c.stroke();
+    c.beginPath();
+    c.arc(ttx + 14, tty + 14, 3.2, 0, Math.PI * 2);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(ttx + 2, tty + 2); c.lineTo(ttx + 7, tty + 7);
+    c.moveTo(ttx + 7, tty + 2); c.lineTo(ttx + 2, tty + 7);
+    c.stroke();
+
+    // 2. Bottom-Right: Carved 5-Point Star Doodle
+    const stX = w - 48;
+    const stY = h - 48;
+    c.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a1 = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+      const sx = stX + Math.cos(a1) * 11;
+      const sy = stY + Math.sin(a1) * 11;
+      if (i === 0) c.moveTo(sx, sy);
+      else c.lineTo(sx, sy);
+    }
+    c.closePath();
+    c.stroke();
+
+    // 3. Bottom-Left: "SK" Square Logo Stamp
+    const skX = 22;
+    const skY = h - 46;
+    c.beginPath();
+    c.roundRect(skX, skY, 24, 24, 4);
+    c.stroke();
+    c.font = '800 10px Fredoka, sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('SK', skX + 12, skY + 12.5);
+
+    // 4. Lower-Middle: Blue Ink Blot Stain
+    c.fillStyle = deskStyle === 'old' ? 'rgba(29, 78, 216, 0.16)' : 'rgba(29, 78, 216, 0.08)';
+    c.beginPath();
+    c.arc(w * 0.46, h * 0.78, 10, 0, Math.PI * 2);
+    c.fill();
+    c.beginPath();
+    c.arc(w * 0.46 + 11, h * 0.78 + 5, 4.5, 0, Math.PI * 2);
+    c.fill();
+    c.beginPath();
+    c.arc(w * 0.46 - 9, h * 0.78 - 6, 3.2, 0, Math.PI * 2);
+    c.fill();
+
+    // 5. Left Edge: Subtle Yellow Ruler Graphic
     if (deskStyle === 'old') {
       c.save();
-      c.strokeStyle = 'rgba(58, 34, 14, 0.34)';
-      c.lineWidth = 1.4;
-
-      const cx = w * 0.78;
-      const cy = h * 0.24;
+      c.translate(18, h * 0.46);
+      c.rotate(-Math.PI / 2 + 0.04);
+      c.fillStyle = 'rgba(234, 179, 8, 0.24)';
+      c.strokeStyle = 'rgba(113, 63, 18, 0.30)';
+      c.lineWidth = 1;
       c.beginPath();
-      c.arc(cx, cy, 24, 0, Math.PI * 2);
-      c.stroke();
-      c.beginPath();
-      c.arc(cx, cy, 11, 0, Math.PI * 2);
-      c.stroke();
-
-      const tx = w * 0.20;
-      const ty = h * 0.76;
-      c.beginPath();
-      c.moveTo(tx - 16, ty - 6); c.lineTo(tx + 16, ty - 6);
-      c.moveTo(tx - 16, ty + 6); c.lineTo(tx + 16, ty + 6);
-      c.moveTo(tx - 6, ty - 16); c.lineTo(tx - 6, ty + 16);
-      c.moveTo(tx + 6, ty - 16); c.lineTo(tx + 6, ty + 16);
-      c.stroke();
-
-      c.fillStyle = 'rgba(29, 78, 216, 0.14)';
-      c.beginPath();
-      c.arc(w * 0.25, h * 0.28, 13, 0, Math.PI * 2);
+      c.roundRect(-55, -8, 110, 16, 2);
       c.fill();
-      c.beginPath();
-      c.arc(w * 0.28, h * 0.30, 6, 0, Math.PI * 2);
-      c.fill();
+      c.stroke();
+      for (let rx = -48; rx <= 48; rx += 6) {
+        c.beginPath();
+        c.moveTo(rx, -8);
+        c.lineTo(rx, rx % 12 === 0 ? -2 : -5);
+        c.stroke();
+      }
       c.restore();
     }
 
-    const vig = c.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.72);
+    c.restore();
+
+    // Soft edge vignette
+    const vig = c.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.36, w / 2, h / 2, Math.max(w, h) * 0.72);
     vig.addColorStop(0, 'rgba(0,0,0,0)');
-    vig.addColorStop(1, 'rgba(38, 20, 6, 0.18)');
+    vig.addColorStop(1, 'rgba(38, 20, 6, 0.16)');
     c.fillStyle = vig;
     c.fillRect(0, 0, w, h);
 
@@ -172,18 +243,27 @@ export class ArenaRenderer {
     engine: PenFightEngine,
     deskStyle: 'clean' | 'old'
   ): void {
-    ctx.fillStyle = '#f5f2e9';
+    // 1. Authentic Warm Cream Outer Background (#f5edd6)
+    ctx.fillStyle = '#f5edd6';
     ctx.fillRect(0, 0, canvasW, canvasH);
 
     const d = engine.outerDesk;
 
     ctx.save();
+    // 2. Dark Wooden Frame with Bronze/Gold Trim (#5c3a21 + #c89d66 + #2b333e)
     ctx.fillStyle = '#5c3a21';
-    ctx.strokeStyle = '#2b302a';
+    ctx.strokeStyle = '#2b333e';
     ctx.lineWidth = 3.5;
     ctx.beginPath();
     ctx.roundRect(d.x - 6, d.y - 5, d.w + 12, d.h + 14, 22);
     ctx.fill();
+    ctx.stroke();
+
+    // Bronze/Gold inner bevel trim along desk border
+    ctx.strokeStyle = 'rgba(212, 163, 106, 0.55)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.roundRect(d.x - 2, d.y - 1.5, d.w + 4, d.h + 5, 18);
     ctx.stroke();
 
     ctx.beginPath();
@@ -193,6 +273,7 @@ export class ArenaRenderer {
     const woodTex = this.getOrBuildDeskTexture(d.w, d.h, deskStyle);
     ctx.drawImage(woodTex, d.x, d.y, d.w, d.h);
 
+    // 3. Active Shrunk Zone Overlay
     if (engine.shrinkSteps > 0) {
       const b = engine.activeBounds;
       ctx.fillStyle = 'rgba(28, 19, 14, 0.36)';
@@ -210,6 +291,7 @@ export class ArenaRenderer {
       ctx.setLineDash([]);
     }
 
+    // 4. Next-Turn Shrink Warning Dashed Red Line (Turns 15, 19, 23, 27)
     if (SHRINK_TURNS.includes(engine.turnCount) && engine.phase !== 'ROUND_OVER') {
       const nextRatio = Math.min(0.32, (engine.shrinkSteps + 1) * 0.07);
       const inX = (d.w * nextRatio) / 2;
@@ -242,11 +324,10 @@ export class ArenaRenderer {
     ctx.font = '800 13px Nunito, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = isCurrentTurn ? pen.labelColor : 'rgba(92, 75, 60, 0.75)';
+    ctx.fillStyle = isCurrentTurn ? pen.labelColor : 'rgba(92, 75, 60, 0.78)';
 
-    const labelY = pen.y + 38;
-    const text = isCurrentTurn && pen.playerIndex === 1 ? `▸ ${pen.label}` : pen.label;
-    ctx.fillText(text, pen.x, labelY);
+    const labelY = pen.y + 36;
+    ctx.fillText(pen.label, pen.x, labelY);
     ctx.restore();
   }
 
@@ -287,7 +368,8 @@ export class ArenaRenderer {
   private static drawThermometerAimGauge(
     ctx: CanvasRenderingContext2D,
     pen: PenBody,
-    engine: PenFightEngine
+    engine: PenFightEngine,
+    showAimGuide = true
   ): void {
     const { grabOffsetRatio, pullX, pullY, powerRatio } = engine.aim;
     const contact = engine.getContactWorldPoint(pen, grabOffsetRatio);
@@ -308,85 +390,89 @@ export class ArenaRenderer {
           ? '#f97316'
           : '#dc2626';
 
-      const arrowLen = 26 + powerRatio * 48;
-      ctx.save();
-      ctx.translate(contact.x, contact.y);
-      ctx.rotate(launchAng);
-
-      ctx.strokeStyle = '#2b302a';
-      ctx.lineWidth = 8;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(10, 0);
-      ctx.lineTo(arrowLen, 0);
-      ctx.stroke();
-
-      ctx.strokeStyle = gaugeColor;
-      ctx.lineWidth = 4.5;
-      ctx.beginPath();
-      ctx.moveTo(10, 0);
-      ctx.lineTo(arrowLen, 0);
-      ctx.stroke();
-
-      ctx.fillStyle = gaugeColor;
-      ctx.strokeStyle = '#2b302a';
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.moveTo(arrowLen + 9, 0);
-      ctx.lineTo(arrowLen - 5, -8);
-      ctx.lineTo(arrowLen - 5, 8);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
-
-      const halfL = pen.lengthPx * 0.44;
-      const rx = Math.cos(pen.angle) * (grabOffsetRatio * halfL);
-      const ry = Math.sin(pen.angle) * (grabOffsetRatio * halfL);
-      const fx = Math.cos(launchAng);
-      const fy = Math.sin(launchAng);
-      const normalizedTorque = (rx * fy - ry * fx) / (halfL || 1);
-
-      if (Math.abs(normalizedTorque) > 0.14) {
-        const spinDir = normalizedTorque > 0 ? 1 : -1;
-        const arcRadius = 18;
-        const arcSpan = Math.min(Math.PI * 1.15, (0.45 + Math.abs(normalizedTorque) * 0.75) * Math.PI);
-        const startA = launchAng - spinDir * (arcSpan * 0.45);
-        const endA = launchAng + spinDir * (arcSpan * 0.55);
-
+      // When Aim guide is ON, draw the forward trajectory arrow and curved spin indicator
+      if (showAimGuide) {
+        const arrowLen = 26 + powerRatio * 48;
         ctx.save();
         ctx.translate(contact.x, contact.y);
+        ctx.rotate(launchAng);
+
         ctx.strokeStyle = '#2b302a';
-        ctx.lineWidth = 6.5;
+        ctx.lineWidth = 8;
         ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.arc(0, 0, arcRadius, startA, endA, spinDir < 0);
+        ctx.moveTo(10, 0);
+        ctx.lineTo(arrowLen, 0);
         ctx.stroke();
 
         ctx.strokeStyle = gaugeColor;
-        ctx.lineWidth = 3.5;
+        ctx.lineWidth = 4.5;
         ctx.beginPath();
-        ctx.arc(0, 0, arcRadius, startA, endA, spinDir < 0);
+        ctx.moveTo(10, 0);
+        ctx.lineTo(arrowLen, 0);
         ctx.stroke();
 
-        const tipX = Math.cos(endA) * arcRadius;
-        const tipY = Math.sin(endA) * arcRadius;
-        const tangentAng = endA + (spinDir > 0 ? Math.PI / 2 : -Math.PI / 2);
-        ctx.translate(tipX, tipY);
-        ctx.rotate(tangentAng);
         ctx.fillStyle = gaugeColor;
         ctx.strokeStyle = '#2b302a';
-        ctx.lineWidth = 1.8;
+        ctx.lineWidth = 2.2;
         ctx.beginPath();
-        ctx.moveTo(5, 0);
-        ctx.lineTo(-4, -5);
-        ctx.lineTo(-4, 5);
+        ctx.moveTo(arrowLen + 9, 0);
+        ctx.lineTo(arrowLen - 5, -8);
+        ctx.lineTo(arrowLen - 5, 8);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
         ctx.restore();
+
+        const halfL = pen.lengthPx * 0.44;
+        const rx = Math.cos(pen.angle) * (grabOffsetRatio * halfL);
+        const ry = Math.sin(pen.angle) * (grabOffsetRatio * halfL);
+        const fx = Math.cos(launchAng);
+        const fy = Math.sin(launchAng);
+        const normalizedTorque = (rx * fy - ry * fx) / (halfL || 1);
+
+        if (Math.abs(normalizedTorque) > 0.14) {
+          const spinDir = normalizedTorque > 0 ? 1 : -1;
+          const arcRadius = 18;
+          const arcSpan = Math.min(Math.PI * 1.15, (0.45 + Math.abs(normalizedTorque) * 0.75) * Math.PI);
+          const startA = launchAng - spinDir * (arcSpan * 0.45);
+          const endA = launchAng + spinDir * (arcSpan * 0.55);
+
+          ctx.save();
+          ctx.translate(contact.x, contact.y);
+          ctx.strokeStyle = '#2b302a';
+          ctx.lineWidth = 6.5;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.arc(0, 0, arcRadius, startA, endA, spinDir < 0);
+          ctx.stroke();
+
+          ctx.strokeStyle = gaugeColor;
+          ctx.lineWidth = 3.5;
+          ctx.beginPath();
+          ctx.arc(0, 0, arcRadius, startA, endA, spinDir < 0);
+          ctx.stroke();
+
+          const tipX = Math.cos(endA) * arcRadius;
+          const tipY = Math.sin(endA) * arcRadius;
+          const tangentAng = endA + (spinDir > 0 ? Math.PI / 2 : -Math.PI / 2);
+          ctx.translate(tipX, tipY);
+          ctx.rotate(tangentAng);
+          ctx.fillStyle = gaugeColor;
+          ctx.strokeStyle = '#2b302a';
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+          ctx.moveTo(5, 0);
+          ctx.lineTo(-4, -5);
+          ctx.lineTo(-4, 5);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
       }
 
+      // Thermometer Power Bar (Always shown, even when Aim guide is OFF)
       const tubeMaxLen = 104;
       const tubeWidth = 13;
       const fillLen = Math.max(8, powerRatio * tubeMaxLen);
@@ -453,20 +539,20 @@ export class ArenaRenderer {
     const w = 160;
     const h = 44;
 
-    ctx.fillStyle = '#2b302a';
+    ctx.fillStyle = '#2b333e';
     ctx.beginPath();
     ctx.roundRect(-w / 2, -h / 2 + 4, w, h, 12);
     ctx.fill();
 
     ctx.fillStyle = cardBg;
-    ctx.strokeStyle = '#2b302a';
+    ctx.strokeStyle = '#2b333e';
     ctx.lineWidth = 2.8;
     ctx.beginPath();
     ctx.roundRect(-w / 2, -h / 2, w, h, 12);
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = '#2b302a';
+    ctx.fillStyle = '#2b333e';
     ctx.font = '800 17px Fredoka, Nunito, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

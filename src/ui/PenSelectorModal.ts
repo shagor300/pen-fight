@@ -68,11 +68,12 @@ export class PenSelectorModal extends EventEmitter {
     this.container.addChild(this.mainCard);
 
     this.penCanvasEl = document.createElement('canvas');
-    this.penCanvasEl.width = 460;
-    this.penCanvasEl.height = 240;
+    this.penCanvasEl.width = 920;
+    this.penCanvasEl.height = 480;
     this.penCanvasCtx = this.penCanvasEl.getContext('2d')!;
     this.penSprite = Sprite.from(this.penCanvasEl);
     this.penSprite.anchor.set(0.5, 0.5);
+    this.penSprite.scale.set(0.5);
     this.mainCard.addChild(this.penSprite);
 
     this.statsOverlayContainer = new Container();
@@ -781,18 +782,21 @@ export class PenSelectorModal extends EventEmitter {
     this.titleText.text = pen.name;
     this.taglineText.text = pen.tagline || pen.description || '';
 
-    this.penCanvasCtx.clearRect(0, 0, this.penCanvasEl.width, this.penCanvasEl.height);
+    this.penCanvasCtx.save();
+    this.penCanvasCtx.setTransform(2, 0, 0, 2, 0, 0);
+    this.penCanvasCtx.clearRect(0, 0, 460, 240);
     renderPenToCanvas(
       this.penCanvasCtx,
       pen,
-      this.penCanvasEl.width / 2,
-      this.penCanvasEl.height / 2,
+      230,
+      120,
       -Math.PI / 5,
       this.penLook,
-      1.22,
+      1.26,
       1.0,
       prog.level
     );
+    this.penCanvasCtx.restore();
 
     this.penSprite.texture.update();
 

@@ -358,7 +358,7 @@ export class GameManager extends EventEmitter {
   }
 
   private renderMenuBackground(): void {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.max(2, Math.min(3, window.devicePixelRatio || 2));
     const w = window.innerWidth;
     const h = window.innerHeight;
 
@@ -374,7 +374,7 @@ export class GameManager extends EventEmitter {
       this.engine.startNewRound(p1, p2, 'ai', 1);
     }
 
-    ArenaRenderer.renderArena(this.arenaCtx, w, h, this.engine, deskStyle, penLook);
+    ArenaRenderer.renderArena(this.arenaCtx, w, h, this.engine, deskStyle, penLook, this.settingsModal.settings.aimGuide, this.settingsModal.settings.reduceMotion);
     this.arenaCtx.restore();
   }
 
@@ -423,7 +423,7 @@ export class GameManager extends EventEmitter {
 
     this.engine.step(dt, mode, diff);
 
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.max(2, Math.min(3, window.devicePixelRatio || 2));
     const w = window.innerWidth;
     const h = window.innerHeight;
 
@@ -433,7 +433,7 @@ export class GameManager extends EventEmitter {
     const deskStyle = (themeManager.prefs.deskTheme === 'old-school' || this.settingsModal.settings.deskStyle === 'old_school') ? 'old' : 'clean';
     const penLook = (themeManager.prefs.penLook || this.settingsModal.settings.penLook) === 'classic' ? 'classic' : 'real';
 
-    ArenaRenderer.renderArena(this.arenaCtx, w, h, this.engine, deskStyle, penLook);
+    ArenaRenderer.renderArena(this.arenaCtx, w, h, this.engine, deskStyle, penLook, this.settingsModal.settings.aimGuide, this.settingsModal.settings.reduceMotion);
     this.arenaCtx.restore();
 
     this.hud.updateFromEngine(this.engine, mode, this.state.scores);
@@ -449,7 +449,7 @@ export class GameManager extends EventEmitter {
     if (this.state.phase === 'ROUND_RESULT' || this.state.phase === 'MATCH_RESULT') return;
     this.state.phase = 'ROUND_RESULT';
 
-    let xpEarned = 30;
+    let xpEarned = 20;
     if (winner === 1) {
       this.state.scores[0]++;
       this.state.streaks[0]++;
@@ -460,10 +460,10 @@ export class GameManager extends EventEmitter {
       this.state.scores[1]++;
       this.state.streaks[1]++;
       this.state.streaks[0] = 0;
-      xpEarned = 30;
+      xpEarned = 20;
       this.awardXP(false);
     } else {
-      xpEarned = 30;
+      xpEarned = 20;
       this.awardXP(false);
     }
 
@@ -533,7 +533,7 @@ export class GameManager extends EventEmitter {
   private onResize(): void {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.max(2, Math.min(3, window.devicePixelRatio || 2));
 
     this.arenaCanvas.width = Math.round(w * dpr);
     this.arenaCanvas.height = Math.round(h * dpr);

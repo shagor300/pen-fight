@@ -61,15 +61,15 @@ export class MatchResultModal extends EventEmitter {
     this.cardContainer.addChild(this.cardContent);
 
     this.p1Canvas = document.createElement('canvas');
-    this.p1Canvas.width = 200;
-    this.p1Canvas.height = 50;
+    this.p1Canvas.width = 400;
+    this.p1Canvas.height = 100;
     this.p1Ctx = this.p1Canvas.getContext('2d')!;
     this.p1Sprite = Sprite.from(this.p1Canvas);
     this.p1Sprite.anchor.set(0.5, 0.5);
 
     this.p2Canvas = document.createElement('canvas');
-    this.p2Canvas.width = 200;
-    this.p2Canvas.height = 50;
+    this.p2Canvas.width = 400;
+    this.p2Canvas.height = 100;
     this.p2Ctx = this.p2Canvas.getContext('2d')!;
     this.p2Sprite = Sprite.from(this.p2Canvas);
     this.p2Sprite.anchor.set(0.5, 0.5);
@@ -336,14 +336,22 @@ export class MatchResultModal extends EventEmitter {
     const penSubRow = new Container();
     penSubRow.y = statsY + 48;
 
-    this.p1Ctx.clearRect(0, 0, this.p1Canvas.width, this.p1Canvas.height);
-    this.p2Ctx.clearRect(0, 0, this.p2Canvas.width, this.p2Canvas.height);
+    this.p1Ctx.save();
+    this.p1Ctx.setTransform(2, 0, 0, 2, 0, 0);
+    this.p1Ctx.clearRect(0, 0, 200, 50);
     renderPenToCanvas(this.p1Ctx, this.data.p1Pen, 100, 25, 0, 'real', 0.85, 1.0);
+    this.p1Ctx.restore();
+
+    this.p2Ctx.save();
+    this.p2Ctx.setTransform(2, 0, 0, 2, 0, 0);
+    this.p2Ctx.clearRect(0, 0, 200, 50);
     renderPenToCanvas(this.p2Ctx, this.data.p2Pen, 100, 25, Math.PI, 'real', 0.85, 1.0);
+    this.p2Ctx.restore();
+
     this.p1Sprite.texture.update();
     this.p2Sprite.texture.update();
 
-    this.p1Sprite.scale.set(0.42);
+    this.p1Sprite.scale.set(0.22);
     this.p1Sprite.x = -115;
     this.p1Sprite.y = 0;
     penSubRow.addChild(this.p1Sprite);
@@ -361,7 +369,7 @@ export class MatchResultModal extends EventEmitter {
     keepText.x = 0;
     penSubRow.addChild(keepText);
 
-    this.p2Sprite.scale.set(0.42);
+    this.p2Sprite.scale.set(0.22);
     this.p2Sprite.x = 115;
     this.p2Sprite.y = 0;
     penSubRow.addChild(this.p2Sprite);

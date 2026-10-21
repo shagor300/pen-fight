@@ -1,31 +1,35 @@
 /**
  * main.ts
- * Application entry point — initializes PixiJS and bootstraps the game.
+ * Application entry point — initializes PixiJS with Ultra-HD Retina Supersampling
+ * (minimum 2x resolution even on standard displays) and bootstraps Desk Wars: Pen Fight.
  */
 import './style.css';
-import { Application } from 'pixi.js';
+import { Application, AbstractRenderer } from 'pixi.js';
 import { GameManager } from './core/GameManager';
 import { themeManager } from './ui/ThemeManager';
 
 async function boot(): Promise<void> {
-  // Load visual theme preferences (light/dark, desk, pen look)
   await themeManager.loadPreferences();
+
+  // Force at least 2x Retina supersampling so vector borders, pens, and text look razor-sharp
+  const targetResolution = Math.max(2, Math.min(3, window.devicePixelRatio || 2));
+  AbstractRenderer.defaultOptions.resolution = targetResolution;
 
   const app = new Application();
 
   await app.init({
-    backgroundAlpha: 0,         // transparent so 2D Arena Canvas is visible underneath
+    backgroundAlpha: 0,
     resizeTo: window,
     antialias: true,
     autoDensity: true,
-    resolution: window.devicePixelRatio || 1,
+    roundPixels: false,
+    resolution: targetResolution,
     preference: 'webgl',
   });
 
   const canvas = app.canvas as HTMLCanvasElement;
   document.getElementById('app')!.appendChild(canvas);
 
-  // Ensure canvas fills viewport and sits on top with transparency
   canvas.id = 'pixi-canvas';
   canvas.style.position = 'absolute';
   canvas.style.top = '0';
@@ -34,21 +38,28 @@ async function boot(): Promise<void> {
   canvas.style.height = '100%';
   canvas.style.display = 'block';
   canvas.style.zIndex = '10';
-  canvas.style.touchAction = 'none'; // prevent browser gestures
+  canvas.style.touchAction = 'none';
 
-  // Load fonts via CSS
   const fontLink = document.createElement('style');
   fontLink.textContent = `
-    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;700&family=Nunito:wght@400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap');
+    body, html, #app {
+      background-color: #f5edd6;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
   `;
   document.head.appendChild(fontLink);
 
-  // Wait a moment for fonts to start loading
-  await new Promise(r => setTimeout(r, 300));
+  if (document.fonts && document.fonts.ready) {
+    await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 400))]);
+  } else {
+    await new Promise(r => setTimeout(r, 300));
+  }
 
   const gameManager = new GameManager(app);
-
-  // Present the Main Menu (VS Computer / 2 Players / Garage / Settings)
   gameManager.showMainMenu();
 }
 
