@@ -1,6 +1,6 @@
 import { Preferences } from '@capacitor/preferences';
 
-export type UiThemeMode = 'light' | 'dark';
+export type UiThemeMode = 'system' | 'light' | 'dark';
 export type DeskThemeMode = 'coffee' | 'oak' | 'mahogany' | 'slate' | 'clean' | 'old-school';
 export type PenLookMode = 'classic' | 'real';
 

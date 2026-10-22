@@ -1,13 +1,25 @@
 /**
  * src/ui/SettingsModal.ts
- * Authentic Single-Page "Make it yours" Settings Modal matching https://shunneklabs.app/games/pen-fight/.
+ * 100% Authentic Single-Page "Make it yours" Settings Modal matching shunneklabs.app reference (Image 2).
  *
- * Key Fixes:
- * 1. Tap-Through Bug Fixed: `this.card.eventMode = 'static'` + `stopPropagation()` ensures tapping
- *    anywhere inside the Settings card NEVER triggers the backdrop or closes the modal!
- *    Closing happens ONLY when pressing the top-right `[✕]` button.
- * 2. Restored the clean, cohesive single-page `Make it yours` layout with SCREEN, PLAY, SOUND,
- *    and Reset progress sections separated by crisp dotted dividers.
+ * Features:
+ * - Header: Gear icon in cream rounded square, title `Make it yours`, close button [ ✕ ].
+ * - SCREEN section:
+ *   - Theme: [ ☀️ System ] [ ☀️ Light ] [ 🌙 Dark ]
+ *   - Language: [ Deutsch ] [ English ]
+ * - Dotted divider line.
+ * - PLAY section with rounded icon badges + Neobrutalist mint-green sliding toggle switches:
+ *   - 🔎 Aim guide (Arrow, path and spin. Off keeps the power bar.)
+ *   - 〰️ Reduce motion (No shake, zoom or moving effects.)
+ *   - 📳 Vibration (A light buzz while you pull.)
+ *   - ⏱️ Automatic next match (Starts 5 seconds after a win.)
+ *   - ⛶ Full screen (Hides the browser bar when a match starts.)
+ *   - Series length: [ First to 3 ] [ First to 5 ] [ Endless ]
+ * - Dotted divider line.
+ * - MATCH DESK WOOD section (allows changing the board gameplay wood):
+ *   - [ ☕ Espresso ] [ 🪵 Teak ] [ 🍷 Mahogany ] [ 🌑 Slate ]
+ * - SOUND section & Reset progress.
+ * - Tap-Through Bug Free: `card.eventMode = 'static'` and `stopPropagation()` prevent accidental dismissals.
  */
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { COLORS, MatchFormat } from '../config/gameConstants';
@@ -17,11 +29,11 @@ import EventEmitter from 'eventemitter3';
 
 export type DeskStyle = 'coffee' | 'oak' | 'mahogany' | 'slate' | 'clean' | 'old_school';
 export type PenLook = 'classic' | 'real';
-
 export type PhysicsModeKey = 'classic' | 'real';
 
 export interface GameSettings {
   uiTheme: UiThemeMode;
+  language: 'de' | 'en';
   deskStyle: DeskStyle;
   penLook: PenLook;
   physicsMode: PhysicsModeKey;
@@ -44,7 +56,8 @@ export class SettingsModal extends EventEmitter {
   private screenHeight: number;
 
   public settings: GameSettings = {
-    uiTheme: 'light',
+    uiTheme: 'system',
+    language: 'en',
     deskStyle: 'coffee',
     penLook: 'real',
     physicsMode: 'classic',
@@ -74,7 +87,7 @@ export class SettingsModal extends EventEmitter {
     this.container = new Container();
     this.container.visible = false;
 
-    // Backdrop blocks clicks from reaching the menu behind it, without accidentally closing when tapping the card
+    // Backdrop blocks clicks from reaching the menu behind it
     this.backdrop = new Graphics();
     this.backdrop.eventMode = 'static';
     this.backdrop.on('pointerdown', (e) => {
@@ -158,7 +171,7 @@ export class SettingsModal extends EventEmitter {
       .fill({ color: 0x0F172A, alpha: 0.68 });
 
     const cardW = Math.min(screenWidth - 20, 404);
-    const cardH = Math.min(screenHeight - 16, 748);
+    const cardH = Math.min(screenHeight - 16, 756);
     const cardX = (screenWidth - cardW) / 2;
     const cardY = (screenHeight - cardH) / 2;
 
@@ -172,6 +185,7 @@ export class SettingsModal extends EventEmitter {
       .fill({ color: cardBgColor })
       .stroke({ color: cardBorderColor, width: 3.4 });
 
+    // Top pill drag indicator
     this.card
       .roundRect(screenWidth / 2 - 22, cardY + 8, 44, 4, 2)
       .fill({ color: isDark ? 0x475569 : 0xC8BFA8 });
@@ -222,7 +236,7 @@ export class SettingsModal extends EventEmitter {
     cc.addChild(title);
 
     let currY = 38;
-    const labelStyle = new TextStyle({
+    const sectionHdrStyle = new TextStyle({
       fontFamily: 'Nunito, sans-serif',
       fontSize: 10,
       fill: textMuted,
@@ -230,15 +244,28 @@ export class SettingsModal extends EventEmitter {
       letterSpacing: 1.2
     });
 
+    const subLabelStyle = new TextStyle({
+      fontFamily: 'Fredoka, sans-serif',
+      fontSize: 12,
+      fill: textPrimary,
+      fontWeight: 'bold',
+    });
+
     // === SECTION 1: SCREEN ===
-    const scrHdr = new Text({ text: 'SCREEN', style: labelStyle });
+    const scrHdr = new Text({ text: 'SCREEN', style: sectionHdrStyle });
     scrHdr.y = currY;
     cc.addChild(scrHdr);
+    currY += 15;
+
+    const themeLbl = new Text({ text: 'Theme', style: subLabelStyle });
+    themeLbl.y = currY;
+    cc.addChild(themeLbl);
     currY += 16;
 
     const themeRow = this.createSegmentedControl(
       totalW,
       [
+        { key: 'system', label: '⚙️ System' },
         { key: 'light', label: '☀️ Light' },
         { key: 'dark', label: '🌙 Dark' },
       ],
@@ -253,50 +280,109 @@ export class SettingsModal extends EventEmitter {
     );
     themeRow.y = currY;
     cc.addChild(themeRow);
-    currY += 38;
+    currY += 36;
 
-    const deskRow = this.createSegmentedControl(
+    const langLbl = new Text({ text: 'Language', style: subLabelStyle });
+    langLbl.y = currY;
+    cc.addChild(langLbl);
+    currY += 16;
+
+    const langRow = this.createSegmentedControl(
       totalW,
       [
-        { key: 'coffee', label: '☕ Espresso' },
-        { key: 'oak', label: '🪵 Teak' },
-        { key: 'mahogany', label: '🍷 Mahogany' },
-        { key: 'slate', label: '🌑 Slate' },
+        { key: 'de', label: 'Deutsch' },
+        { key: 'en', label: 'English' },
       ],
-      themeManager.getNormalizedDeskTheme(),
-      async (val) => {
-        this.settings.deskStyle = val as DeskStyle;
-        await themeManager.setDeskTheme(val as any);
+      this.settings.language || 'en',
+      (val) => {
+        this.settings.language = val as 'de' | 'en';
         this.emit('settings_changed', this.settings);
         this.renderContent();
       }
     );
-    deskRow.y = currY;
-    cc.addChild(deskRow);
+    langRow.y = currY;
+    cc.addChild(langRow);
     currY += 38;
 
-    const penRow = this.createSegmentedControl(
+    this.drawDashedDivider(cc, totalW, currY);
+    currY += 8;
+
+    // === SECTION 2: PLAY ===
+    const playHdr = new Text({ text: 'PLAY', style: sectionHdrStyle });
+    playHdr.y = currY;
+    cc.addChild(playHdr);
+    currY += 15;
+
+    const aimRow = this.createCompactToggleRow(
       totalW,
-      [
-        { key: 'classic', label: '🎨 Classic look' },
-        { key: 'real', label: '✨ Real look' },
-      ],
-      this.settings.penLook,
-      async (val) => {
-        this.settings.penLook = val as PenLook;
-        await themeManager.setPenLook(val as PenLookMode);
+      '🔎',
+      'Aim guide',
+      'Arrow, path and spin. Off keeps the power bar.',
+      this.settings.aimGuide,
+      (val) => {
+        this.settings.aimGuide = val;
         this.emit('settings_changed', this.settings);
         this.renderContent();
       }
     );
-    penRow.y = currY;
-    cc.addChild(penRow);
+    aimRow.y = currY;
+    cc.addChild(aimRow);
+    currY += 38;
+
+    const motionRow = this.createCompactToggleRow(
+      totalW,
+      '〰️',
+      'Reduce motion',
+      'No shake, zoom or moving effects.',
+      this.settings.reduceMotion,
+      (val) => {
+        this.settings.reduceMotion = val;
+        this.emit('settings_changed', this.settings);
+        this.renderContent();
+      }
+    );
+    motionRow.y = currY;
+    cc.addChild(motionRow);
+    currY += 38;
+
+    const vibRow = this.createCompactToggleRow(
+      totalW,
+      '📳',
+      'Vibration',
+      'A light buzz while you pull.',
+      this.settings.vibration,
+      (val) => {
+        this.settings.vibration = val;
+        soundManager.setVibrationEnabled(val);
+        this.emit('settings_changed', this.settings);
+        this.renderContent();
+      }
+    );
+    vibRow.y = currY;
+    cc.addChild(vibRow);
+    currY += 38;
+
+    const autoRow = this.createCompactToggleRow(
+      totalW,
+      '⏱️',
+      'Automatic next match',
+      'Starts 5 seconds after a win.',
+      this.settings.automaticNextMatch,
+      (val) => {
+        this.settings.automaticNextMatch = val;
+        this.emit('settings_changed', this.settings);
+        this.renderContent();
+      }
+    );
+    autoRow.y = currY;
+    cc.addChild(autoRow);
     currY += 38;
 
     const fsRow = this.createCompactToggleRow(
       totalW,
+      '⛶',
       'Full screen',
-      'Fills the screen. Press Esc to exit.',
+      'Hides the browser bar when a match starts.',
       this.settings.fullScreen,
       (val) => {
         this.settings.fullScreen = val;
@@ -310,102 +396,15 @@ export class SettingsModal extends EventEmitter {
     );
     fsRow.y = currY;
     cc.addChild(fsRow);
-    currY += 38;
-
-    this.drawDashedDivider(cc, totalW, currY);
-    currY += 8;
-
-    // === SECTION 2: PLAY ===
-    const playHdr = new Text({ text: 'PLAY', style: labelStyle });
-    playHdr.y = currY;
-    cc.addChild(playHdr);
-    currY += 16;
-
-    const physicsRow = this.createSegmentedControl(
-      totalW,
-      [
-        { key: 'classic', label: '🎮 Classic' },
-        { key: 'real', label: '⚙️ Real' },
-      ],
-      this.settings.physicsMode,
-      (val) => {
-        this.settings.physicsMode = val as PhysicsModeKey;
-        this.emit('settings_changed', this.settings);
-        this.renderContent();
-      }
-    );
-    physicsRow.y = currY;
-    cc.addChild(physicsRow);
-    currY += 38;
-
-    const aimRow = this.createCompactToggleRow(
-      totalW,
-      'Aim guide',
-      'Arrow, path and spin arc. Off keeps the power bar.',
-      this.settings.aimGuide,
-      (val) => {
-        this.settings.aimGuide = val;
-        this.emit('settings_changed', this.settings);
-        this.renderContent();
-      }
-    );
-    aimRow.y = currY;
-    cc.addChild(aimRow);
-    currY += 36;
-
-    const motionRow = this.createCompactToggleRow(
-      totalW,
-      'Reduce motion',
-      'Calms moving backgrounds and confetti.',
-      this.settings.reduceMotion,
-      (val) => {
-        this.settings.reduceMotion = val;
-        this.emit('settings_changed', this.settings);
-        this.renderContent();
-      }
-    );
-    motionRow.y = currY;
-    cc.addChild(motionRow);
-    currY += 36;
-
-    const vibRow = this.createCompactToggleRow(
-      totalW,
-      'Vibration',
-      'Short buzz on hits. Android and supported controllers.',
-      this.settings.vibration,
-      (val) => {
-        this.settings.vibration = val;
-        soundManager.setVibrationEnabled(val);
-        this.emit('settings_changed', this.settings);
-        this.renderContent();
-      }
-    );
-    vibRow.y = currY;
-    cc.addChild(vibRow);
-    currY += 36;
-
-    const autoRow = this.createCompactToggleRow(
-      totalW,
-      'Automatic next match',
-      'Starts the next match 5 seconds after a round ends.',
-      this.settings.automaticNextMatch,
-      (val) => {
-        this.settings.automaticNextMatch = val;
-        this.emit('settings_changed', this.settings);
-        this.renderContent();
-      }
-    );
-    autoRow.y = currY;
-    cc.addChild(autoRow);
-    currY += 38;
+    currY += 40;
 
     const seriesLbl = new Text({
-      text: 'Series length · starts next series',
-      style: new TextStyle({ fontFamily: 'Nunito, sans-serif', fontSize: 11, fill: textPrimary, fontWeight: '800' })
+      text: 'Series length',
+      style: subLabelStyle,
     });
     seriesLbl.y = currY;
     cc.addChild(seriesLbl);
-    currY += 18;
+    currY += 16;
 
     const formatRow = this.createSegmentedControl(
       totalW,
@@ -428,15 +427,45 @@ export class SettingsModal extends EventEmitter {
     this.drawDashedDivider(cc, totalW, currY);
     currY += 8;
 
-    // === SECTION 3: SOUND ===
-    const sndHdr = new Text({ text: 'SOUND', style: labelStyle });
+    // === SECTION 3: MATCH DESK WOOD (Gameplay Arena Board) ===
+    const deskHdr = new Text({ text: 'MATCH DESK WOOD', style: sectionHdrStyle });
+    deskHdr.y = currY;
+    cc.addChild(deskHdr);
+    currY += 15;
+
+    const deskRow = this.createSegmentedControl(
+      totalW,
+      [
+        { key: 'coffee', label: '☕ Espresso' },
+        { key: 'oak', label: '🪵 Teak' },
+        { key: 'mahogany', label: '🍷 Mahogany' },
+        { key: 'slate', label: '🌑 Slate' },
+      ],
+      themeManager.getNormalizedDeskTheme(),
+      async (val) => {
+        this.settings.deskStyle = val as DeskStyle;
+        await themeManager.setDeskTheme(val as any);
+        this.emit('settings_changed', this.settings);
+        this.renderContent();
+      }
+    );
+    deskRow.y = currY;
+    cc.addChild(deskRow);
+    currY += 38;
+
+    this.drawDashedDivider(cc, totalW, currY);
+    currY += 8;
+
+    // === SECTION 4: SOUND ===
+    const sndHdr = new Text({ text: 'SOUND', style: sectionHdrStyle });
     sndHdr.y = currY;
     cc.addChild(sndHdr);
-    currY += 16;
+    currY += 15;
 
     const sndRow = this.createCompactToggleRow(
       totalW,
-      'Sound',
+      '🔊',
+      'Sound FX & Music',
       'Off silences everything.',
       this.settings.soundEnabled,
       (val) => {
@@ -458,7 +487,7 @@ export class SettingsModal extends EventEmitter {
     });
     ovRow.y = currY;
     cc.addChild(ovRow);
-    currY += 28;
+    currY += 26;
 
     const sfxRow = this.createCompactVolumeRow(totalW, 'Effects volume', this.settings.sfxVolume, (val) => {
       this.settings.sfxVolume = val;
@@ -468,7 +497,7 @@ export class SettingsModal extends EventEmitter {
     });
     sfxRow.y = currY;
     cc.addChild(sfxRow);
-    currY += 28;
+    currY += 26;
 
     const musRow = this.createCompactVolumeRow(totalW, 'Music volume', this.settings.musicVolume, (val) => {
       this.settings.musicVolume = val;
@@ -477,12 +506,12 @@ export class SettingsModal extends EventEmitter {
     });
     musRow.y = currY;
     cc.addChild(musRow);
-    currY += 32;
+    currY += 30;
 
     this.drawDashedDivider(cc, totalW, currY);
     currY += 8;
 
-    // === SECTION 4: RESET PROGRESS & FOOTER ===
+    // === SECTION 5: RESET PROGRESS & FOOTER ===
     const resetRow = new Container();
     resetRow.y = currY;
     const rTitle = new Text({
@@ -499,82 +528,77 @@ export class SettingsModal extends EventEmitter {
     rSub.y = 16;
     resetRow.addChild(rSub);
 
-    const rBtn = new Container();
-    rBtn.x = totalW - 64;
-    rBtn.y = 3;
-    rBtn.eventMode = 'static';
-    rBtn.cursor = 'pointer';
-    rBtn.addChild(
-      new Graphics()
-        .roundRect(0, 0, 64, 26, 8)
-        .fill({ color: isDark ? 0x334155 : 0xEAE2CF })
-        .stroke({ color: 0x2B333E, width: 1.8 })
-    );
-    const rTxt = new Text({
-      text: 'Reset',
-      style: new TextStyle({ fontFamily: 'Fredoka, sans-serif', fontSize: 12, fill: textPrimary, fontWeight: 'bold' })
-    });
-    rTxt.anchor.set(0.5, 0.5);
-    rTxt.x = 32;
-    rTxt.y = 13;
-    rBtn.addChild(rTxt);
-    rBtn.on('pointerdown', (e) => {
-      e.stopPropagation();
-      soundManager.play('ui_click');
-      try {
-        localStorage.removeItem('pen_fight_progression');
-        localStorage.removeItem('pen_fight_stats');
-      } catch {}
-      this.emit('reset_progress');
-    });
-    resetRow.addChild(rBtn);
-    cc.addChild(resetRow);
-    currY += 38;
+    const resetBtn = new Container();
+    resetBtn.x = totalW - 68;
+    resetBtn.y = 2;
+    const rBg = new Graphics()
+      .roundRect(0, 0, 68, 28, 8)
+      .fill({ color: 0xFEE2E2 })
+      .stroke({ color: 0xDC2626, width: 1.8 });
+    resetBtn.addChild(rBg);
 
-    const footer = new Text({
-      text: 'Version 1.5.1 · Games · Give feedback · Privacy · Terms',
-      style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
-        fontSize: 10,
-        fill: textMuted,
-        fontWeight: '700'
-      })
+    const rBtnTxt = new Text({
+      text: 'Reset',
+      style: new TextStyle({ fontFamily: 'Fredoka, sans-serif', fontSize: 11, fill: 0xDC2626, fontWeight: 'bold' })
     });
-    footer.anchor.set(0.5, 0);
-    footer.x = totalW / 2;
-    footer.y = currY;
-    cc.addChild(footer);
+    rBtnTxt.anchor.set(0.5, 0.5);
+    rBtnTxt.x = 34;
+    rBtnTxt.y = 14;
+    resetBtn.addChild(rBtnTxt);
+
+    resetBtn.eventMode = 'static';
+    resetBtn.cursor = 'pointer';
+    resetBtn.on('pointerdown', (e) => {
+      e.stopPropagation();
+      try {
+        localStorage.removeItem('shunnek_pen_fight_progression');
+        soundManager.play('round_lose');
+        window.location.reload();
+      } catch {}
+    });
+    resetRow.addChild(resetBtn);
+
+    cc.addChild(resetRow);
   }
 
   private drawDashedDivider(parent: Container, totalW: number, y: number): void {
-    const g = new Graphics();
-    for (let x = 0; x < totalW; x += 10) {
-      g.rect(x, y, 5, 1.2).fill({ color: 0xC8BFA8, alpha: 0.7 });
+    const isDark = this.settings.uiTheme === 'dark';
+    const div = new Graphics();
+    const dotW = 4;
+    const dotGap = 4;
+    const col = isDark ? 0x334155 : 0xD5CCBE;
+
+    for (let x = 0; x < totalW; x += dotW + dotGap) {
+      div.rect(x, y, dotW, 1.2).fill({ color: col });
     }
-    parent.addChild(g);
+    parent.addChild(div);
   }
 
   private createSegmentedControl(
     totalW: number,
     items: { key: string; label: string }[],
-    currentKey: string,
+    selectedKey: string,
     onSelect: (key: string) => void
   ): Container {
     const row = new Container();
-    const itemW = (totalW - (items.length - 1) * 8) / items.length;
+    const count = items.length;
+    const gap = 6;
+    const itemW = (totalW - (count - 1) * gap) / count;
     const isDark = this.settings.uiTheme === 'dark';
 
     items.forEach((item, idx) => {
-      const isSelected = item.key === currentKey;
-      const x = idx * (itemW + 8);
+      const isSelected = item.key === selectedKey;
+      const x = idx * (itemW + gap);
 
       const btn = new Container();
       btn.x = x;
 
       const unselectedBg = isDark ? 0x334155 : 0xEAE2CF;
+      const selectedBg = item.key === 'system' ? 0x93C5FD : COLORS.butterYellow;
+
       const bg = new Graphics()
-        .roundRect(0, 0, itemW, 31, 9)
-        .fill({ color: isSelected ? COLORS.butterYellow : unselectedBg })
+        .roundRect(0, 0, itemW, 30, 9)
+        .fill({ color: isSelected ? selectedBg : unselectedBg })
         .stroke({ color: 0x2B333E, width: isSelected ? 2.2 : 1.6 });
       btn.addChild(bg);
 
@@ -582,14 +606,14 @@ export class SettingsModal extends EventEmitter {
         text: item.label,
         style: new TextStyle({
           fontFamily: 'Fredoka, sans-serif',
-          fontSize: 12,
-          fill: isSelected ? 0x2B333E : (isDark ? 0xF8FAFC : 0x2B333E),
+          fontSize: 11.5,
+          fill: 0x2B333E,
           fontWeight: 'bold',
         }),
       });
       txt.anchor.set(0.5, 0.5);
       txt.x = itemW / 2;
-      txt.y = 15.5;
+      txt.y = 15;
       btn.addChild(txt);
 
       btn.eventMode = 'static';
@@ -608,6 +632,7 @@ export class SettingsModal extends EventEmitter {
 
   private createCompactToggleRow(
     totalW: number,
+    iconStr: string,
     label: string,
     subtitle: string,
     enabled: boolean,
@@ -616,6 +641,23 @@ export class SettingsModal extends EventEmitter {
     const row = new Container();
     const isDark = this.settings.uiTheme === 'dark';
 
+    // Left Square Icon Tile
+    const iconTile = new Graphics()
+      .roundRect(0, 0, 30, 30, 9)
+      .fill({ color: isDark ? 0x334155 : 0xEAE2CF })
+      .stroke({ color: 0x2B333E, width: 1.8 });
+    row.addChild(iconTile);
+
+    const iconTxt = new Text({
+      text: iconStr,
+      style: new TextStyle({ fontSize: 15 }),
+    });
+    iconTxt.anchor.set(0.5, 0.5);
+    iconTxt.x = 15;
+    iconTxt.y = 15;
+    row.addChild(iconTxt);
+
+    // Label & Subtitle
     const txt = new Text({
       text: label,
       style: new TextStyle({
@@ -625,7 +667,7 @@ export class SettingsModal extends EventEmitter {
         fill: isDark ? 0xF8FAFC : 0x2B333E,
       }),
     });
-    txt.x = 0;
+    txt.x = 38;
     txt.y = 0;
     row.addChild(txt);
 
@@ -633,23 +675,24 @@ export class SettingsModal extends EventEmitter {
       text: subtitle,
       style: new TextStyle({
         fontFamily: 'Nunito, sans-serif',
-        fontSize: 9.8,
+        fontSize: 9.6,
         fontWeight: '700',
         fill: isDark ? 0x94A3B8 : 0x6E6658,
       }),
     });
-    sub.x = 0;
+    sub.x = 38;
     sub.y = 16;
     row.addChild(sub);
 
+    // Neobrutalist Sliding Toggle Switch
     const toggle = new Container();
     toggle.x = totalW - 44;
-    toggle.y = 4;
+    toggle.y = 3;
 
     const track = new Graphics()
       .roundRect(0, 0, 42, 22, 11)
-      .fill({ color: enabled ? 0x86EFAC : 0xCBD5E1 })
-      .stroke({ color: 0x2B333E, width: 1.8 });
+      .fill({ color: enabled ? 0x4ADE80 : (isDark ? 0x475569 : 0xD5CCBE) })
+      .stroke({ color: 0x2B333E, width: 2 });
     toggle.addChild(track);
 
     const thumb = new Graphics()
@@ -683,25 +726,25 @@ export class SettingsModal extends EventEmitter {
       text: `${label} (${Math.round(volume * 100)}%)`,
       style: new TextStyle({
         fontFamily: 'Nunito, sans-serif',
-        fontSize: 11.5,
+        fontSize: 11,
         fontWeight: '800',
         fill: isDark ? 0xF8FAFC : 0x2B333E,
       }),
     });
     txt.x = 0;
-    txt.y = 4;
+    txt.y = 3;
     row.addChild(txt);
 
     const btnMinus = this.createSmallBtn('–', () => {
       onChange(Math.max(0, parseFloat((volume - 0.1).toFixed(1))));
     });
-    btnMinus.x = totalW - 64;
+    btnMinus.x = totalW - 60;
     btnMinus.y = 0;
 
     const btnPlus = this.createSmallBtn('+', () => {
       onChange(Math.min(1, parseFloat((volume + 0.1).toFixed(1))));
     });
-    btnPlus.x = totalW - 30;
+    btnPlus.x = totalW - 28;
     btnPlus.y = 0;
 
     row.addChild(btnMinus);
@@ -713,7 +756,7 @@ export class SettingsModal extends EventEmitter {
   private createSmallBtn(label: string, onClick: () => void): Container {
     const btn = new Container();
     const bg = new Graphics()
-      .roundRect(0, 0, 28, 22, 6)
+      .roundRect(0, 0, 26, 20, 6)
       .fill({ color: 0xEAE2CF })
       .stroke({ color: 0x2B333E, width: 1.6 });
     btn.addChild(bg);
@@ -722,14 +765,14 @@ export class SettingsModal extends EventEmitter {
       text: label,
       style: new TextStyle({
         fontFamily: 'Fredoka, sans-serif',
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: 'bold',
         fill: 0x2B333E,
       }),
     });
     txt.anchor.set(0.5, 0.5);
-    txt.x = 14;
-    txt.y = 11;
+    txt.x = 13;
+    txt.y = 10;
     btn.addChild(txt);
 
     btn.eventMode = 'static';

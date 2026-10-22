@@ -9,7 +9,7 @@ import { DeskBounds } from '../core/DeskManager';
 import { ShotFiredEvent } from './InputController';
 import { BASE_IMPULSE, MAX_PULL_PX, SCALE } from '../config/gameConstants';
 
-export type AIDifficulty = 'easy' | 'normal' | 'hard';
+export type AIDifficulty = 'easy' | 'normal' | 'hard' | 'master';
 
 export interface AIShotDecision {
   impulseVec: planck.Vec2;
@@ -42,7 +42,7 @@ export class AIController {
     this.cancel();
 
     // Natural human-like reaction delay
-    const delay = difficulty === 'easy' ? 950 : difficulty === 'normal' ? 800 : 650;
+    const delay = difficulty === 'easy' ? 950 : difficulty === 'normal' ? 800 : difficulty === 'hard' ? 650 : 480;
 
     this.timeoutId = setTimeout(() => {
       this.timeoutId = null;
@@ -98,7 +98,7 @@ export class AIController {
         const sign = Math.random() < 0.5 ? -1 : 1;
         grabOffsetLength = sign * (aiPen.lengthPx / 2) * 0.7 * (1 / SCALE);
       }
-    } else {
+    } else if (difficulty === 'hard') {
       // HARD AI:
       // 1. Determine which desk boundary is closest to the player's pen
       const distToLeft = (playerPos.x * SCALE) - bounds.left;
@@ -135,6 +135,27 @@ export class AIController {
         const sign = Math.random() < 0.5 ? -1 : 1;
         grabOffsetLength = sign * (aiPen.lengthPx / 2) * 0.8 * (1 / SCALE);
       }
+    } else {
+      // MASTER AI: Pinpoint accuracy and aggressive edge knockout
+      const distToLeft = (playerPos.x * SCALE) - bounds.left;
+      const distToRight = bounds.right - (playerPos.x * SCALE);
+      const distToTop = (playerPos.y * SCALE) - bounds.top;
+      const distToBottom = bounds.bottom - (playerPos.y * SCALE);
+
+      const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+      let targetPushAngle = 0;
+      if (minDist === distToLeft) targetPushAngle = Math.PI;
+      else if (minDist === distToRight) targetPushAngle = 0;
+      else if (minDist === distToTop) targetPushAngle = -Math.PI / 2;
+      else targetPushAngle = Math.PI / 2;
+
+      const directAngle = Math.atan2(dy, dx);
+      const angleDiff = targetPushAngle - directAngle;
+      baseAngle = directAngle + Math.sin(angleDiff) * 0.15 + (Math.random() - 0.5) * 0.01;
+      powerRatio = 0.98;
+
+      const sign = Math.random() < 0.5 ? -1 : 1;
+      grabOffsetLength = sign * (aiPen.lengthPx / 2) * 0.88 * (1 / SCALE);
     }
 
     // Direction unit vector

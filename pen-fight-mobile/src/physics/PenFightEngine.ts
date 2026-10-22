@@ -555,7 +555,7 @@ export class PenFightEngine {
   // ════════════════════════════════════════════════════════════════════════
   // AI SHOT CALCULATOR (4-Tier: Easy, Normal, Hard, Master)
   // ════════════════════════════════════════════════════════════════════════
-  public beginAiTurn(difficulty: 'easy' | 'normal' | 'hard'): void {
+  public beginAiTurn(difficulty: 'easy' | 'normal' | 'hard' | 'master'): void {
     if (this.pens.length < 2 || !this.pens[0] || !this.pens[1]) return;
     const aiPen = this.pens[1];
     const targetPen = this.pens[0];
@@ -565,6 +565,7 @@ export class PenFightEngine {
       easy:   { angleJitter: 0.14, powerMin: 0.68, powerMax: 0.84, spinProb: 0.25, tipAimProb: 0.20, reactionMs: 650 },
       normal: { angleJitter: 0.055, powerMin: 0.80, powerMax: 0.94, spinProb: 0.65, tipAimProb: 0.60, reactionMs: 520 },
       hard:   { angleJitter: 0.012, powerMin: 0.90, powerMax: 1.00, spinProb: 0.92, tipAimProb: 0.88, reactionMs: 420 },
+      master: { angleJitter: 0.003, powerMin: 0.95, powerMax: 1.00, spinProb: 0.98, tipAimProb: 0.96, reactionMs: 340 },
     };
     const cfg = profiles[difficulty] || profiles.normal;
 
@@ -634,7 +635,7 @@ export class PenFightEngine {
   // ════════════════════════════════════════════════════════════════════════
   // MAIN FRAME UPDATE — Fixed Timestep Accumulator (Shunnek Formula 1)
   // ════════════════════════════════════════════════════════════════════════
-  public step(dtSec: number, mode: 'ai' | '2p', aiDifficulty: 'easy' | 'normal' | 'hard'): void {
+  public step(dtSec: number, mode: 'ai' | '2p', aiDifficulty: 'easy' | 'normal' | 'hard' | 'master'): void {
     const clampedDt = Math.min(0.05, Math.max(0.001, dtSec));
     const dtMs = clampedDt * 1000;
 
@@ -1182,7 +1183,7 @@ export class PenFightEngine {
   // ════════════════════════════════════════════════════════════════════════
   // TURN & ROUND LOGIC
   // ════════════════════════════════════════════════════════════════════════
-  private evaluateEndOfTurn(mode: 'ai' | '2p', aiDifficulty: 'easy' | 'normal' | 'hard'): void {
+  private evaluateEndOfTurn(mode: 'ai' | '2p', aiDifficulty: 'easy' | 'normal' | 'hard' | 'master'): void {
     if (this.pens.length < 2 || !this.pens[0] || !this.pens[1]) return;
     const p1 = this.pens[0];
     const p2 = this.pens[1];
@@ -1239,7 +1240,7 @@ export class PenFightEngine {
     this.advanceToNextTurn(mode, aiDifficulty);
   }
 
-  private advanceToNextTurn(mode: 'ai' | '2p', aiDifficulty: 'easy' | 'normal' | 'hard'): void {
+  private advanceToNextTurn(mode: 'ai' | '2p', aiDifficulty: 'easy' | 'normal' | 'hard' | 'master'): void {
     this.turnCount++;
     this.activePlayer = this.activePlayer === 1 ? 2 : 1;
     this.turnIdleSec = 0;

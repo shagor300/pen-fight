@@ -25,7 +25,7 @@ import { SettingsModal, GameSettings } from '../ui/SettingsModal';
 import { COLORS, MatchFormat } from '../config/gameConstants';
 
 export type GameMode = 'VS_AI' | 'TWO_PLAYER';
-export type AIDifficulty = 'easy' | 'normal' | 'hard';
+export type AIDifficulty = 'easy' | 'normal' | 'hard' | 'master';
 export type GamePhase =
   | 'MENU'
   | 'PEN_SELECT'
@@ -46,6 +46,8 @@ export interface GameState {
   roundFirstPlayer: 1 | 2;
   matchFormat: MatchFormat;
   winsNeeded: number;
+  equalLevels: boolean;
+  mirrorMatch: boolean;
 }
 
 export class GameManager extends EventEmitter {
@@ -148,6 +150,8 @@ export class GameManager extends EventEmitter {
       roundFirstPlayer: 1,
       matchFormat: 'first_to_3',
       winsNeeded: 3,
+      equalLevels: true,
+      mirrorMatch: false,
     };
 
     // ── HUD ─────────────────────────────────────────────────────────
@@ -243,6 +247,8 @@ export class GameManager extends EventEmitter {
       this.selectedPenIndices[1] = opts.mirror ? opts.penIndex : (opts.penIndex + 1) % PENS_ROSTER.length;
       this.state.mode = opts.mode;
       this.state.aiDifficulty = opts.difficulty;
+      this.state.equalLevels = opts.equalLevels;
+      this.state.mirrorMatch = opts.mirror;
       if (opts.look) {
         this.settingsModal.settings.penLook = opts.look;
       }
@@ -466,7 +472,20 @@ export class GameManager extends EventEmitter {
     const p2Spec = PENS_ROSTER[this.selectedPenIndices[1]] || PENS_ROSTER[1];
     const mode = this.state.mode === 'VS_AI' ? 'ai' : '2p';
 
-    this.engine.startNewRound(p1Spec, p2Spec, mode, this.state.roundFirstPlayer);
+    const p1Level = this.progressionManager.getProgress(p1Spec.id).level;
+    const p2Level = this.state.mirrorMatch && mode === 'ai'
+      ? p1Level
+      : this.progressionManager.getProgress(p2Spec.id).level;
+
+    this.engine.startNewRound(
+      p1Spec,
+      p2Spec,
+      mode,
+      this.state.roundFirstPlayer,
+      p1Level,
+      p2Level,
+      this.state.equalLevels
+    );
     this.state.phase = 'PLAYER_TURN';
 
     this.hud.updateFromEngine(this.engine, mode, this.state.scores);
@@ -474,11 +493,14 @@ export class GameManager extends EventEmitter {
 
   /** Per-frame game loop */
   private update(dt: number): void {
-    if (this.state.phase === 'MENU' || this.state.phase === 'PAUSED') return;
+    if (this.state.phase === 'MENU') {
+      this.mainMenu.update(dt);
+      return;
+    }
+    if (this.state.phase === 'PAUSED') return;
 
     const mode = this.state.mode === 'VS_AI' ? 'ai' : '2p';
-    const diff: 'easy' | 'normal' | 'hard' =
-      this.state.aiDifficulty === 'hard' ? 'hard' : this.state.aiDifficulty === 'easy' ? 'easy' : 'normal';
+    const diff = this.state.aiDifficulty;
 
     // 1. Step the 60-120fps physics & AI engine
     this.engine.step(dt, mode, diff);
