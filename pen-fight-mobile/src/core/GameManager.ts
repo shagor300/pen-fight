@@ -5,6 +5,7 @@
  */
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import EventEmitter from 'eventemitter3';
+import { App } from '@capacitor/app';
 import { PenFightEngine } from '../physics/PenFightEngine';
 import { ArenaRenderer } from '../rendering/ArenaRenderer';
 import { TouchAimController } from '../controllers/TouchAimController';
@@ -212,6 +213,13 @@ export class GameManager extends EventEmitter {
     this.mainMenu.on('open_help', () => {
       this.howToPlayModal.show();
     });
+    this.mainMenu.on('sound_toggle', (enabled: boolean) => {
+      soundManager.setEnabled(enabled);
+      this.settingsModal.settings.soundEnabled = enabled;
+    });
+    this.mainMenu.on('open_feedback', () => {
+      window.open('https://github.com/shagor300/pen-fight/issues', '_blank');
+    });
 
     // ── Who Is Playing Modal ────────────────────────────────────────
     this.whoModal = new WhoIsPlayingModal(app.screen.width, app.screen.height);
@@ -359,11 +367,72 @@ export class GameManager extends EventEmitter {
     // Listen to resize
     window.addEventListener('resize', () => this.onResize());
 
+    // Android Hardware & Navigation Back Button Handler
+    App.addListener('backButton', () => {
+      this.handleHardwareBack();
+    });
+
     // 60-120fps Main Game Loop
     app.ticker.add((ticker) => this.update(ticker.deltaMS / 1000));
 
     // Show Main Menu on start
     this.showMainMenu();
+  }
+
+  /**
+   * Android Hardware / Navigation Back Button Handler:
+   * - Closes any open modal/popup (Pick Pen, Settings, Stats, Pause) and returns to previous screen.
+   * - Never abruptly exits the game while inside a match.
+   * - Pauses the game if pressed during a match.
+   * - Only exits when on the main menu.
+   */
+  private handleHardwareBack(): void {
+    if (this.howToPlayModal.container.visible) {
+      this.howToPlayModal.hide();
+      return;
+    }
+    if (this.settingsModal.container.visible) {
+      this.settingsModal.hide();
+      return;
+    }
+    if (this.statsModal.container.visible) {
+      this.statsModal.hide();
+      return;
+    }
+    if (this.leaderboardModal.container.visible) {
+      this.leaderboardModal.hide();
+      return;
+    }
+    if (this.matchResultModal.container.visible) {
+      this.matchResultModal.hide();
+      this.showMainMenu();
+      return;
+    }
+    if (this.pauseModal.container.visible) {
+      this.pauseModal.hide();
+      return;
+    }
+    if (this.penModal.container.visible) {
+      this.penModal.hide();
+      this.whoModal.show();
+      return;
+    }
+    if (this.whoModal.container.visible) {
+      this.whoModal.hide();
+      this.mainMenu.show();
+      return;
+    }
+
+    // Inside a match: pause, do not exit
+    if (this.state.phase === 'PLAYER_TURN' || this.state.phase === 'SIMULATING') {
+      this.togglePauseMenu();
+      return;
+    }
+
+    // On Main Menu: exit app
+    if (this.state.phase === 'MENU') {
+      App.exitApp();
+    }
   }
 
   private setupEngineAudio(): void {
@@ -408,6 +477,11 @@ export class GameManager extends EventEmitter {
     // Wire physics mode into the engine
     if (cfg.physicsMode) {
       this.engine.setPhysicsMode(cfg.physicsMode);
+    }
+    // Invalidate cached desk texture so wood color changes instantly
+    ArenaRenderer.clearDeskCache();
+    if (this.state.phase === 'MENU') {
+      this.renderMenuBackground();
     }
   }
 
@@ -524,10 +598,12 @@ export class GameManager extends EventEmitter {
     this.arenaCtx.save();
     this.arenaCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const deskStyle = (themeManager.prefs.deskTheme === 'old-school' || this.settingsModal.settings.deskStyle === 'old_school') ? 'old' : 'clean';
+    const deskStyle = themeManager.getNormalizedDeskTheme();
     const penLook = (themeManager.prefs.penLook || this.settingsModal.settings.penLook) === 'classic' ? 'classic' : 'real';
+    const showAimGuide = this.settingsModal.settings.aimGuide;
+    const reduceMotion = this.settingsModal.settings.reduceMotion;
 
-    ArenaRenderer.renderArena(this.arenaCtx, w, h, this.engine, deskStyle, penLook);
+    ArenaRenderer.renderArena(this.arenaCtx, w, h, this.engine, deskStyle, penLook, showAimGuide, reduceMotion);
     this.arenaCtx.restore();
 
     // 3. Update Top HUD using TopHudUpdater

@@ -1,14 +1,16 @@
 /**
  * src/ui/PenSelectorModal.ts
- * 100% Authentic Neo-Brutalist Pen Showcase & Locker matching shunneklabs.app reference.
- * Features:
- * - Natural light Scandinavian blonde birch/oak desk wood stage board
- * - Angled 3D pen showcase with soft realistic drop shadow
- * - Classic vs Real look toggle pill
- * - 4 AI Difficulty selector buttons (Easy, Normal, Hard, Master)
- * - 100% Functional "Equal levels" and "Mirror match" toggle pills with sliding animated switches
- * - Chunky rounded navigation buttons [ < ] and [ > ]
- * - Perfectly aligned 5-star segmented stat bars and skill card with zero overlap
+ * 100% Authentic Neo-Brutalist Pen Showcase & Locker.
+ *
+ * Features & Fixes:
+ * - Perfectly balanced vertical spacing: ZERO awkward gaps, ZERO overflowing buttons!
+ * - Scandinavian blonde honey birch preview board (0xD8BA93) with natural planks.
+ * - NO artificial black oval smudge under the pen — crisp, clean, professional presentation.
+ * - Interactive [ ℹ ] info button that opens a comprehensive Pen Stats & Skills Guide popup.
+ * - Clean 3-tier difficulty buttons: [ Easy ] [ Normal ] [ Hard ] (No locked Master clutter!).
+ * - 100% Functional "Equal levels" and "Mirror match" switches with animated sliding knobs.
+ * - Compact skill card and 5-star segmented stat bars.
+ * - Fits comfortably inside mobile screens with 16px bottom margin.
  */
 import { Container, Graphics, Sprite, Text, TextStyle, Texture, Rectangle } from 'pixi.js';
 import { PENS_ROSTER, PenSpec } from '../config/pensConfig';
@@ -73,6 +75,9 @@ export class PenSelectorModal extends EventEmitter {
 
   // Bottom Action Controls Container
   private bottomControlsContainer: Container;
+
+  // Interactive Info Guide Popup
+  private infoOverlay: Container;
 
   constructor(
     screenWidth: number,
@@ -203,6 +208,10 @@ export class PenSelectorModal extends EventEmitter {
     this.bottomControlsContainer = new Container();
     this.cardContent.addChild(this.bottomControlsContainer);
 
+    // 10. Interactive Info Guide Popup
+    this.infoOverlay = this.createInfoOverlay();
+    this.container.addChild(this.infoOverlay);
+
     this.layout();
   }
 
@@ -215,8 +224,9 @@ export class PenSelectorModal extends EventEmitter {
     this.p1EquippedIndex = this.selectedIndex;
     this.p2EquippedIndex = (this.selectedIndex + 1) % PENS_ROSTER.length;
     this.mode = mode;
-    this.difficulty = difficulty;
+    this.difficulty = difficulty === 'hard' ? 'hard' : difficulty === 'easy' ? 'easy' : 'normal';
     this.container.visible = true;
+    this.infoOverlay.visible = false;
 
     this.layout();
     this.updateView();
@@ -224,6 +234,7 @@ export class PenSelectorModal extends EventEmitter {
 
   public hide(): void {
     this.container.visible = false;
+    this.infoOverlay.visible = false;
   }
 
   public prevPen(): void {
@@ -246,8 +257,8 @@ export class PenSelectorModal extends EventEmitter {
       .rect(0, 0, screenWidth, screenHeight)
       .fill({ color: 0x0E131F, alpha: 0.75 });
 
-    const cardW = Math.min(screenWidth - 24, 390);
-    const cardH = Math.min(screenHeight - 24, 710);
+    const cardW = Math.min(screenWidth - 20, 396);
+    const cardH = Math.min(screenHeight - 16, 730);
 
     this.cardContainer.x = screenWidth / 2;
     this.cardContainer.y = screenHeight / 2;
@@ -264,19 +275,20 @@ export class PenSelectorModal extends EventEmitter {
       .fill({ color: COLORS.cardCream })
       .stroke({ color: COLORS.navyBorder, width: 3.4 });
 
-    const topY = -cardH / 2 + 14;
+    // Calculate vertical layout top-down with tight, proportional distribution
+    const topY = -cardH / 2 + 12;
 
-    // Header: Back button on left, Title next to it, Mode badge on right
+    // Header: Back button on left, Title, Mode badge on right
     this.closeBtn.x = -cardW / 2 + 20;
-    this.closeBtn.y = topY + 14;
+    this.closeBtn.y = topY + 12;
 
     this.modeTitleText.x = -cardW / 2 + 44;
-    this.modeTitleText.y = topY + 14;
+    this.modeTitleText.y = topY + 12;
 
-    this.buildModeBadge(cardW / 2 - 20, topY + 14);
+    this.buildModeBadge(cardW / 2 - 20, topY + 12);
 
     // Stage Top Row: Level badge, Dots, Info button
-    const stageTopY = topY + 36;
+    const stageTopY = topY + 34;
     this.levelBadgeContainer.x = -cardW / 2 + 34;
     this.levelBadgeContainer.y = stageTopY;
 
@@ -286,45 +298,49 @@ export class PenSelectorModal extends EventEmitter {
     this.infoBtn.x = cardW / 2 - 34;
     this.infoBtn.y = stageTopY;
 
-    // Stage Wood Board (Scandinavian Blonde Honey Birch/Oak matching Image 4)
-    const stageW = cardW - 36;
-    const stageH = 136;
-    const stageY = stageTopY + 12;
+    // Stage Wood Board (Scandinavian Blonde Honey Birch)
+    const stageW = cardW - 32;
+    const stageH = 118;
+    const stageY = stageTopY + 10;
 
     this.drawStageBox(stageW, stageH, stageY);
 
     this.penPreviewContainer.x = 0;
     this.penPreviewContainer.y = stageY + stageH / 2;
 
-    this.prevBtn.x = -stageW / 2 + 24;
+    this.prevBtn.x = -stageW / 2 + 22;
     this.prevBtn.y = stageY + stageH / 2;
 
-    this.nextBtn.x = stageW / 2 - 24;
+    this.nextBtn.x = stageW / 2 - 22;
     this.nextBtn.y = stageY + stageH / 2;
 
     // Identity texts
-    const textY = stageY + stageH + 6;
+    const textY = stageY + stageH + 5;
     this.titleText.x = 0;
     this.titleText.y = textY;
 
     this.taglineText.x = 0;
-    this.taglineText.y = textY + 24;
+    this.taglineText.y = textY + 22;
 
     // Pen Look Pill: [ Classic | Real ]
     this.penLookToggle.x = 0;
-    this.penLookToggle.y = textY + 50;
+    this.penLookToggle.y = textY + 44;
 
     // 5-Star Segmented Stat Bars
-    this.statBarsContainer.x = -cardW / 2 + 24;
-    this.statBarsContainer.y = textY + 70;
+    this.statBarsContainer.x = -cardW / 2 + 22;
+    this.statBarsContainer.y = textY + 66;
 
     // Skill Inset Box
     this.skillBox.x = 0;
-    this.skillBox.y = textY + 164;
+    this.skillBox.y = textY + 148;
 
     // Bottom Controls: Computer, Toggles, Fight!
+    // Align cleanly to the bottom with 14px padding
     this.bottomControlsContainer.x = 0;
-    this.bottomControlsContainer.y = cardH / 2 - 46;
+    this.bottomControlsContainer.y = cardH / 2 - 16;
+
+    // Layout Info Overlay
+    this.layoutInfoOverlay(screenWidth, screenHeight);
 
     if (this.container.visible) {
       this.updateView();
@@ -334,7 +350,6 @@ export class PenSelectorModal extends EventEmitter {
   private updateView(): void {
     const pen = PENS_ROSTER[this.selectedIndex];
     const progress = this.progression.getProgress(pen.id);
-    const bonus = this.progression.getStatBonus(pen.id);
 
     this.titleText.text = pen.name;
     this.taglineText.text = pen.tagline || pen.description;
@@ -403,7 +418,7 @@ export class PenSelectorModal extends EventEmitter {
   private drawStageBox(stageW: number, stageH: number, stageY: number): void {
     this.stageBox.clear();
 
-    // 1. Natural light Scandinavian blonde honey birch / oak board (matching Image 4)
+    // 1. Natural light Scandinavian blonde honey birch / oak board
     const baseColor = 0xD8BA93;
     const plankColors = [0xDFC8A9, 0xD4B892, 0xE2CBAA, 0xCDB088, 0xD9BD97];
 
@@ -434,11 +449,6 @@ export class PenSelectorModal extends EventEmitter {
         .fill({ color: 0x784414, alpha: 0.08 });
     }
 
-    // Realistic soft drop shadow under the angled pen
-    this.stageBox
-      .ellipse(0, stageY + stageH / 2 + 12, stageW * 0.36, 12)
-      .fill({ color: 0x231407, alpha: 0.25 });
-
     // Inset bevel highlight
     this.stageBox
       .roundRect(-stageW / 2 + 2, stageY + 2, stageW - 4, stageH - 4, 16)
@@ -453,7 +463,6 @@ export class PenSelectorModal extends EventEmitter {
     }
 
     const L = Math.ceil(pen.dimensions.lengthMeters * PIXELS_PER_METER);
-    const W = Math.ceil(pen.dimensions.widthMeters * PIXELS_PER_METER);
     const pad = 64;
     const canvasW = L + pad * 2;
     const canvasH = L + pad * 2;
@@ -463,7 +472,7 @@ export class PenSelectorModal extends EventEmitter {
     offscreen.height = canvasH;
     const ctx = offscreen.getContext('2d')!;
 
-    // Render pen angled gracefully at -30° matching Image 4
+    // Render pen angled gracefully at -30° (RealPenRenderer draws its own natural drop shadow!)
     const angle = -0.52;
     renderPenToCanvas(ctx, pen, canvasW / 2, canvasH / 2, angle, this.penLook);
 
@@ -519,36 +528,39 @@ export class PenSelectorModal extends EventEmitter {
     const halfW = w / 2 - 2;
     const isReal = this.penLook === 'real';
 
-    const selG = new Graphics()
-      .roundRect(isReal ? 0 : -halfW, -h / 2 + 2, halfW, h - 4, r)
+    const pillX = isReal ? 1 : -halfW - 1;
+    const pill = new Graphics()
+      .roundRect(pillX, -h / 2 + 2, halfW, h - 4, r)
       .fill({ color: COLORS.butterYellow })
-      .stroke({ color: 0x2B333E, width: 1.5 });
-    this.penLookToggle.addChild(selG);
+      .stroke({ color: 0x2B333E, width: 1.8 });
+    this.penLookToggle.addChild(pill);
 
     const classicTxt = new Text({
       text: 'Classic',
       style: new TextStyle({
         fontFamily: 'Fredoka, sans-serif',
-        fontSize: 10.5,
+        fontSize: 11,
         fill: 0x2B333E,
-        fontWeight: !isReal ? 'bold' : '600',
+        fontWeight: 'bold',
       })
     });
     classicTxt.anchor.set(0.5, 0.5);
-    classicTxt.x = -halfW / 2;
+    classicTxt.x = -w / 4;
+    classicTxt.y = 0;
     this.penLookToggle.addChild(classicTxt);
 
     const realTxt = new Text({
       text: 'Real',
       style: new TextStyle({
         fontFamily: 'Fredoka, sans-serif',
-        fontSize: 10.5,
+        fontSize: 11,
         fill: 0x2B333E,
-        fontWeight: isReal ? 'bold' : '600',
+        fontWeight: 'bold',
       })
     });
     realTxt.anchor.set(0.5, 0.5);
-    realTxt.x = halfW / 2;
+    realTxt.x = w / 4;
+    realTxt.y = 0;
     this.penLookToggle.addChild(realTxt);
 
     this.penLookToggle.eventMode = 'static';
@@ -563,169 +575,161 @@ export class PenSelectorModal extends EventEmitter {
 
   private drawStatBars(pen: PenSpec): void {
     this.statBarsContainer.removeChildren();
-    const stats: [string, number][] = [
-      ['Weight', pen.stats.weight],
-      ['Speed', pen.stats.speed],
-      ['Spin', pen.stats.spin],
-      ['Grip', pen.stats.grip],
-      ['Reach', pen.stats.reach],
+
+    const maxRating = 5;
+    const rowH = 13.5;
+    const barW = 216;
+    const segGap = 3.5;
+    const segW = (barW - (maxRating - 1) * segGap) / maxRating;
+    const segH = 7.5;
+    const segR = 3;
+
+    const stats = [
+      { name: 'Weight', val: pen.stats.weight, color: 0xEA580C },
+      { name: 'Speed',  val: pen.stats.speed,  color: 0x0EA5E9 },
+      { name: 'Spin',   val: pen.stats.spin,   color: 0x8B5CF6 },
+      { name: 'Grip',   val: pen.stats.grip,   color: 0x10B981 },
+      { name: 'Reach',  val: pen.stats.reach,  color: 0xF43F5E },
     ];
 
-    const rowH = 17;
-    const labelStyle = new TextStyle({
-      fontFamily: 'Fredoka, sans-serif',
-      fontSize: 11.5,
-      fill: COLORS.textDark,
-      fontWeight: 'bold',
-    });
-
-    const cardW = Math.min(this.screenWidth - 24, 390);
-    const totalW = cardW - 48;
-    const starStartX = 56;
-    const badgeW = 28;
-    const gap = 5;
-    const availableForBars = totalW - starStartX - badgeW - 10;
-    const starW = Math.max(16, Math.floor((availableForBars - 4 * gap) / 5));
-
-    const SKILL_COLORS: { fill: number; stroke: number }[] = [
-      { fill: 0xF59E0B, stroke: 0xD97706 },  // Weight: Amber
-      { fill: 0x06B6D4, stroke: 0x0891B2 },  // Speed: Cyan
-      { fill: 0x8B5CF6, stroke: 0x7C3AED },  // Spin: Purple
-      { fill: 0x10B981, stroke: 0x059669 },  // Grip: Emerald
-      { fill: 0xF43F5E, stroke: 0xE11D48 },  // Reach: Crimson
-    ];
-
-    stats.forEach(([label, value], idx) => {
+    stats.forEach((st, idx) => {
       const y = idx * rowH;
 
-      const nameText = new Text({ text: label, style: labelStyle });
-      nameText.x = 0;
-      nameText.y = y;
-      this.statBarsContainer.addChild(nameText);
+      const lbl = new Text({
+        text: st.name,
+        style: new TextStyle({
+          fontFamily: 'Fredoka, sans-serif',
+          fontSize: 11,
+          fill: 0x2B333E,
+          fontWeight: 'bold',
+        })
+      });
+      lbl.anchor.set(0, 0.5);
+      lbl.x = 0;
+      lbl.y = y;
+      this.statBarsContainer.addChild(lbl);
 
-      const color = SKILL_COLORS[idx];
-      const starsG = new Graphics();
-      for (let s = 1; s <= 5; s++) {
-        const sx = starStartX + (s - 1) * (starW + gap);
-        const isFilled = s <= value;
-        starsG.roundRect(sx, y + 1, starW, 10.5, 3.5)
-          .fill({ color: isFilled ? color.fill : 0xD8CFC2 })
-          .stroke({ color: isFilled ? color.stroke : 0xBEB4A4, width: 1.2 });
+      const barsX = 58;
+      for (let s = 0; s < maxRating; s++) {
+        const seg = new Graphics();
+        const sx = barsX + s * (segW + segGap);
+        const sy = y - segH / 2;
+        const isFilled = s < st.val;
+
+        seg.roundRect(sx, sy, segW, segH, segR)
+          .fill({ color: isFilled ? st.color : 0xE6DEC9 });
+        if (isFilled) {
+          seg.stroke({ color: 0x2B333E, width: 1.2 });
+        }
+        this.statBarsContainer.addChild(seg);
       }
-      this.statBarsContainer.addChild(starsG);
 
-      // Numeric badge (X/5)
-      const numBadge = new Text({
-        text: `${value}/5`,
+      const numTxt = new Text({
+        text: `${st.val}/5`,
         style: new TextStyle({
           fontFamily: 'Nunito, sans-serif',
           fontSize: 10,
-          fill: SKILL_COLORS[idx].fill,
-          fontWeight: '800',
+          fill: 0x78716C,
+          fontWeight: 'bold',
         })
       });
-      numBadge.x = starStartX + 5 * (starW + gap) + 4;
-      numBadge.y = y + 1;
-      this.statBarsContainer.addChild(numBadge);
+      numTxt.anchor.set(0, 0.5);
+      numTxt.x = barsX + maxRating * (segW + segGap) + 4;
+      numTxt.y = y;
+      this.statBarsContainer.addChild(numTxt);
     });
   }
 
   private drawSkillBox(pen: PenSpec): void {
     this.skillBox.removeChildren();
-    const boxW = Math.min(this.screenWidth - 24, 390) - 44;
+    const cardW = Math.min(this.screenWidth - 20, 396);
+    const boxW = cardW - 36;
     const boxH = 40;
+    const r = 12;
 
-    const bg = new Graphics()
-      .roundRect(-boxW / 2, 0, boxW, boxH, 10)
-      .fill({ color: 0xF3ECE0 })
-      .stroke({ color: 0xDACDB8, width: 1.4 });
-    this.skillBox.addChild(bg);
+    const box = new Graphics()
+      .roundRect(-boxW / 2, 0, boxW, boxH, r)
+      .fill({ color: 0xF6F0E4 })
+      .stroke({ color: 0xD6CBB6, width: 1.6 });
+    this.skillBox.addChild(box);
 
+    const titleStyle = new TextStyle({
+      fontFamily: 'Fredoka, sans-serif',
+      fontSize: 11.5,
+      fill: 0x854D0E,
+      fontWeight: 'bold',
+    });
     const title = new Text({
-      text: `🛡️ ${pen.skillName || 'Skill'}`,
-      style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
-        fontSize: 11,
-        fill: 0x92400E,
-        fontWeight: 'bold',
-      })
+      text: `🛡️ ${pen.skillName || 'Standard Balance'}`,
+      style: titleStyle,
     });
     title.x = -boxW / 2 + 10;
     title.y = 4;
     this.skillBox.addChild(title);
 
+    const descStyle = new TextStyle({
+      fontFamily: 'Nunito, sans-serif',
+      fontSize: 9.8,
+      fill: 0x57534E,
+      fontWeight: '700',
+      wordWrap: true,
+      wordWrapWidth: boxW - 20,
+    });
     const desc = new Text({
-      text: pen.skillDesc || 'Balanced gameplay performance.',
-      style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
-        fontSize: 9.8,
-        fill: COLORS.textDark,
-        wordWrap: true,
-        wordWrapWidth: boxW - 20,
-      })
+      text: pen.skillDesc || pen.description || 'Solid all-around pen with predictable collision physics.',
+      style: descStyle,
     });
     desc.x = -boxW / 2 + 10;
-    desc.y = 19;
+    desc.y = 20;
     this.skillBox.addChild(desc);
   }
 
   private buildBottomControls(): void {
     this.bottomControlsContainer.removeChildren();
-    const cardW = Math.min(this.screenWidth - 24, 390);
+    const cardW = Math.min(this.screenWidth - 20, 396);
+    const totalW = cardW - 36;
 
     if (this.mode === 'VS_AI') {
-      const totalW = cardW - 44;
-
-      // 1. COMPUTER Section Label
+      // 1. "COMPUTER" Header Label (Tight, no giant gaps!)
       const compLabel = new Text({
-        text: 'COMPUTER',
+        text: 'COMPUTER DIFFICULTY',
         style: new TextStyle({
-          fontFamily: 'Fredoka, sans-serif',
-          fontSize: 10,
-          fill: 0x78716C,
-          fontWeight: 'bold',
-          letterSpacing: 1.5,
+          fontFamily: 'Nunito, sans-serif',
+          fontSize: 9.5,
+          fill: 0x8C7A68,
+          fontWeight: '900',
+          letterSpacing: 1.2,
         })
       });
       compLabel.anchor.set(0, 0.5);
       compLabel.x = -totalW / 2;
-      compLabel.y = -86;
+      compLabel.y = -132;
       this.bottomControlsContainer.addChild(compLabel);
 
-      // 2. Difficulty row: [ Easy ] [ Normal ] [ Hard ] [ 🔒 Master ]
-      const diffH = 28;
+      // 2. 3-Button Difficulty Row: [ Easy ] [ Normal ] [ Hard ] (No locked Master clutter!)
       const diffContainer = new Container();
-      diffContainer.y = -68;
-
-      const diffs: AIDifficulty[] = ['easy', 'normal', 'hard', 'master'];
-      const itemW = (totalW - 9) / 4;
+      diffContainer.y = -108;
+      const diffH = 28;
+      const diffs: AIDifficulty[] = ['easy', 'normal', 'hard'];
+      const itemW = (totalW - 12) / 3;
 
       diffs.forEach((d, idx) => {
         const isSel = this.difficulty === d;
         const btn = new Container();
-        btn.x = -totalW / 2 + idx * (itemW + 3) + itemW / 2;
+        btn.x = -totalW / 2 + idx * (itemW + 6) + itemW / 2;
 
-        const surface = new Graphics();
-        if (d === 'master' && !isSel) {
-          // Master dashed lock look
-          surface
-            .roundRect(-itemW / 2, -diffH / 2, itemW, diffH, 12)
-            .fill({ color: 0xF5EFE2 })
-            .stroke({ color: 0x94A3B8, width: 1.5 });
-        } else {
-          surface
-            .roundRect(-itemW / 2, -diffH / 2, itemW, diffH, 12)
-            .fill({ color: isSel ? 0x93C5FD : 0xEFE8D8 })
-            .stroke({ color: COLORS.navyBorder, width: isSel ? 2.2 : 1.2 });
-        }
+        const surface = new Graphics()
+          .roundRect(-itemW / 2, -diffH / 2, itemW, diffH, 10)
+          .fill({ color: isSel ? 0x93C5FD : 0xEFE8D8 })
+          .stroke({ color: COLORS.navyBorder, width: isSel ? 2.2 : 1.4 });
         btn.addChild(surface);
 
-        const lblText = d === 'master' ? 'Master 🔒' : d.charAt(0).toUpperCase() + d.slice(1);
+        const lblText = d.charAt(0).toUpperCase() + d.slice(1);
         const txt = new Text({
           text: lblText,
           style: new TextStyle({
             fontFamily: 'Fredoka, sans-serif',
-            fontSize: 10.5,
+            fontSize: 11.5,
             fill: COLORS.textDark,
             fontWeight: isSel ? 'bold' : '600',
           })
@@ -747,7 +751,7 @@ export class PenSelectorModal extends EventEmitter {
 
       // 3. Toggles Row: [ Equal levels (switch) ]  [ Mirror match (switch) ]
       const toggleW = (totalW - 8) / 2;
-      const toggleH = 34;
+      const toggleH = 32;
 
       const equalPill = this.createTogglePill(
         toggleW,
@@ -760,7 +764,7 @@ export class PenSelectorModal extends EventEmitter {
         }
       );
       equalPill.x = -totalW / 2 + toggleW / 2;
-      equalPill.y = -32;
+      equalPill.y = -64;
       this.bottomControlsContainer.addChild(equalPill);
 
       const mirrorPill = this.createTogglePill(
@@ -774,7 +778,7 @@ export class PenSelectorModal extends EventEmitter {
         }
       );
       mirrorPill.x = totalW / 2 - toggleW / 2;
-      mirrorPill.y = -32;
+      mirrorPill.y = -64;
       this.bottomControlsContainer.addChild(mirrorPill);
 
       // 4. Giant Butter Yellow Fight Button: [ ▷ Fight ]
@@ -789,14 +793,14 @@ export class PenSelectorModal extends EventEmitter {
           equalLevels: this.equalLevels,
         });
       });
-      fightBtn.y = 10;
+      fightBtn.y = -24;
       this.bottomControlsContainer.addChild(fightBtn);
 
     } else {
       // 2-Player mode
-      const totalW = cardW - 44;
+      const totalW = cardW - 36;
       const btnW = (totalW - 10) / 2;
-      const btnH = 38;
+      const btnH = 36;
 
       const isP1 = this.p1EquippedIndex === this.selectedIndex;
       const isP2 = this.p2EquippedIndex === this.selectedIndex;
@@ -813,7 +817,7 @@ export class PenSelectorModal extends EventEmitter {
         }
       );
       p1Btn.x = -totalW / 4 - 2;
-      p1Btn.y = -28;
+      p1Btn.y = -72;
       this.bottomControlsContainer.addChild(p1Btn);
 
       const p2Btn = this.createActionButton(
@@ -828,7 +832,7 @@ export class PenSelectorModal extends EventEmitter {
         }
       );
       p2Btn.x = totalW / 4 + 2;
-      p2Btn.y = -28;
+      p2Btn.y = -72;
       this.bottomControlsContainer.addChild(p2Btn);
 
       const startBtn = this.createActionButton(
@@ -848,7 +852,7 @@ export class PenSelectorModal extends EventEmitter {
           });
         }
       );
-      startBtn.y = 12;
+      startBtn.y = -24;
       this.bottomControlsContainer.addChild(startBtn);
     }
   }
@@ -868,14 +872,12 @@ export class PenSelectorModal extends EventEmitter {
     const activeBg = 0xCDEAC0;
     const inactiveBg = 0xEFE8D8;
 
-    // Surface
     const bg = new Graphics()
       .roundRect(-w / 2, -h / 2, w, h, r)
       .fill({ color: active ? activeBg : inactiveBg })
       .stroke({ color: 0x2B333E, width: 2.2 });
     cont.addChild(bg);
 
-    // Label text
     const txt = new Text({
       text: label,
       style: new TextStyle({
@@ -897,12 +899,10 @@ export class PenSelectorModal extends EventEmitter {
     const swY = -swH / 2;
 
     const switchG = new Graphics()
-      // Outer track
       .roundRect(swX, swY, swW, swH, swH / 2)
       .fill({ color: active ? 0x4ADE80 : 0xD5CCBE })
       .stroke({ color: 0x2B333E, width: 1.8 });
 
-    // Sliding knob
     const knobR = 6.2;
     const knobX = active ? (swX + swW - knobR - 2.5) : (swX + knobR + 2.5);
     switchG
@@ -1083,8 +1083,142 @@ export class PenSelectorModal extends EventEmitter {
     btn.on('pointerdown', (e) => {
       e.stopPropagation();
       soundManager.play('ui_click');
+      this.infoOverlay.visible = true;
     });
 
     return btn;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // INTERACTIVE INFO MODAL OVERLAY
+  // ══════════════════════════════════════════════════════════════════════════
+  private createInfoOverlay(): Container {
+    const cont = new Container();
+    cont.visible = false;
+    cont.eventMode = 'static';
+
+    const scrim = new Graphics();
+    scrim.eventMode = 'static';
+    scrim.on('pointerdown', (e) => {
+      e.stopPropagation();
+      cont.visible = false;
+    });
+    cont.addChild(scrim);
+
+    const card = new Container();
+    card.eventMode = 'static';
+    card.on('pointerdown', (e) => e.stopPropagation());
+    cont.addChild(card);
+
+    return cont;
+  }
+
+  private layoutInfoOverlay(w: number, h: number): void {
+    const cont = this.infoOverlay;
+    const scrim = cont.getChildAt(0) as Graphics;
+    scrim.clear().rect(0, 0, w, h).fill({ color: 0x000000, alpha: 0.65 });
+
+    const card = cont.getChildAt(1) as Container;
+    card.removeChildren();
+    card.x = w / 2;
+    card.y = h / 2;
+
+    const modalW = Math.min(w - 40, 330);
+    const modalH = 340;
+    const r = 20;
+
+    // 3D Shadow
+    const shadow = new Graphics()
+      .roundRect(-modalW / 2, -modalH / 2 + 6, modalW, modalH, r)
+      .fill({ color: COLORS.navyShadow });
+    card.addChild(shadow);
+
+    // Surface
+    const surface = new Graphics()
+      .roundRect(-modalW / 2, -modalH / 2, modalW, modalH, r)
+      .fill({ color: 0xFDFBF7 })
+      .stroke({ color: COLORS.navyBorder, width: 3 });
+    card.addChild(surface);
+
+    // Title
+    const title = new Text({
+      text: 'ℹ Pen Stats & Skills Guide',
+      style: new TextStyle({
+        fontFamily: 'Fredoka, sans-serif',
+        fontSize: 16,
+        fill: 0x1E3A8A,
+        fontWeight: 'bold',
+      })
+    });
+    title.anchor.set(0.5, 0);
+    title.x = 0;
+    title.y = -modalH / 2 + 16;
+    card.addChild(title);
+
+    // Stats definitions
+    const items = [
+      { icon: '⚖️', name: 'Weight', desc: 'Higher weight resists knockout blows and hits harder.' },
+      { icon: '⚡', name: 'Speed',  desc: 'Initial flick velocity and overall table glide distance.' },
+      { icon: '🔄', name: 'Spin',   desc: 'Rotational torque generated on offset flicks.' },
+      { icon: '🎯', name: 'Grip',   desc: 'Surface friction for precise edge braking and stop control.' },
+      { icon: '📏', name: 'Reach',  desc: 'Pen length for hooking, sweeping, and edge tipping.' },
+      { icon: '🛡️', name: 'Skills', desc: 'Each pen has a unique passive ability triggered in battle.' },
+    ];
+
+    let currY = -modalH / 2 + 48;
+    items.forEach((it) => {
+      const row = new Container();
+      row.x = -modalW / 2 + 18;
+      row.y = currY;
+
+      const icon = new Text({
+        text: it.icon,
+        style: new TextStyle({ fontSize: 13 })
+      });
+      icon.y = 0;
+      row.addChild(icon);
+
+      const label = new Text({
+        text: it.name,
+        style: new TextStyle({
+          fontFamily: 'Fredoka, sans-serif',
+          fontSize: 12,
+          fill: 0x1E293B,
+          fontWeight: 'bold',
+        })
+      });
+      label.x = 22;
+      label.y = 0;
+      row.addChild(label);
+
+      const desc = new Text({
+        text: it.desc,
+        style: new TextStyle({
+          fontFamily: 'Nunito, sans-serif',
+          fontSize: 10,
+          fill: 0x64748B,
+          fontWeight: '700',
+          wordWrap: true,
+          wordWrapWidth: modalW - 40,
+        })
+      });
+      desc.x = 22;
+      desc.y = 15;
+      row.addChild(desc);
+
+      card.addChild(row);
+      currY += 38;
+    });
+
+    // Close button: [ Got It! ]
+    const btnW = modalW - 36;
+    const btnH = 38;
+    const gotItBtn = this.createActionButton(btnW, btnH, 'Got It!', COLORS.butterYellow, () => {
+      soundManager.play('ui_click');
+      this.infoOverlay.visible = false;
+    });
+    gotItBtn.x = 0;
+    gotItBtn.y = modalH / 2 - 46;
+    card.addChild(gotItBtn);
   }
 }

@@ -16,6 +16,11 @@ export class ArenaRenderer {
   private static cachedDeskCanvas: HTMLCanvasElement | null = null;
   private static cachedDeskKey = '';
 
+  public static clearDeskCache(): void {
+    this.cachedDeskCanvas = null;
+    this.cachedDeskKey = '';
+  }
+
   public static renderArena(
     ctx: CanvasRenderingContext2D,
     canvasW: number,
@@ -80,7 +85,9 @@ export class ArenaRenderer {
 
   private static getOrBuildDeskTexture(w: number, h: number, deskStyle: string): HTMLCanvasElement {
     const texScale = 2;
-    const style = deskStyle === 'clean' ? 'oak' : (deskStyle === 'old' ? 'coffee' : (deskStyle || 'coffee'));
+    const style = (deskStyle === 'oak' || deskStyle === 'mahogany' || deskStyle === 'slate' || deskStyle === 'coffee')
+      ? deskStyle
+      : (deskStyle === 'clean' ? 'oak' : 'coffee');
     const key = `${Math.round(w)}x${Math.round(h)}_${style}_${texScale}`;
     if (this.cachedDeskCanvas && this.cachedDeskKey === key) {
       return this.cachedDeskCanvas;

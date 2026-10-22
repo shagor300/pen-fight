@@ -1,21 +1,15 @@
 /**
  * src/ui/MainMenu.ts
- * 100% Authentic Home Screen replicating shunneklabs.app reference (Image 3).
+ * Unique, Premium Game Application Home Screen.
  *
- * Features:
- * - Rich, warm deep mahogany desk wood (0x381E0C) with plank grooves, subtle wood grain, and realistic doodles.
- * - Scattered realistic curled yellow pencil shavings with graphite core.
- * - Pinned ripped notebook paper header with blue horizontal rulings, red vertical margin, and masking tape strips.
- * - Student desk clock icon [ ⏱️ ✏️ ] pinned to header.
- * - Chunky 3D "Pen Fight" cartoon logo + "THE SCHOOL DESK SERIES" pill banner.
- * - REALISTIC 3D CROSSING PENS (Orange Ballpoint & Blue Gel Pen) with CONTINUOUS LIVE FLOATING ANIMATION:
- *   - Continuous bobbing (sine & cosine floating physics)
- *   - Tilting angle oscillation
- *   - Pulsing golden starburst collision spark with rotation
- *   - Trailing motion blur speed streaks
- * - Giant Butter-Yellow [ ▷ Play ] button with "Played X" match count.
- * - Bottom action cards: [ 🏆 Leaderboard ], [ 📊 Stats ], [ ⚙️ Settings ], and [ ✉️ Feedback ].
- * - Version footer: v1.5.4 · 52c2e5f.
+ * Design:
+ * - Rich dark executive mahogany wood background (0x2E170A) with clean plank grooves.
+ * - Top App Bar: Profile Avatar [ 👤 Lv.1 ] on the left; Sound Toggle [ 🔊 ] and Help [ ? ] on the right.
+ * - Unique 3D Game Brand Logo: "PEN FIGHT" with dimensional depth and gold ribbon "★ PRO DESK COMBAT ★" (No ripped paper!).
+ * - Live Floating Crossing 3D Pens (Orange Ballpoint & Blue Rollerball) with 60-120fps floating physics & collision sparks.
+ * - Chunky Butter-Yellow [ ▷ Play ] button with "Played X Matches" subtitle.
+ * - Bottom Action Grid: [ 🏆 Leaderboard ], [ 📊 Stats ], [ ⚙️ Settings ], and [ ✉️ Feedback ].
+ * - Clean version footer: Pen Fight Pro · v1.8.
  */
 import { Container, Graphics, Text, TextStyle, Rectangle } from 'pixi.js';
 import { COLORS } from '../config/gameConstants';
@@ -32,12 +26,16 @@ export class MainMenu extends EventEmitter {
   // Background & Desk Layers
   private bgContainer: Container;
   private deskGraphics: Graphics;
-  private pencilShavingsGraphics: Graphics;
 
-  // Taped Ripped Notebook Header
-  private headerContainer: Container;
+  // Top App Bar
+  private topBarContainer: Container;
   private avatarBtn: Container;
-  private menuBtn: Container;
+  private soundBtn: Container;
+  private helpBtn: Container;
+  private soundBtnText: Text;
+
+  // Brand Logo Container (Clean & Unique, no paper!)
+  private logoContainer: Container;
 
   // Floating Crossing Pens
   private pensArtContainer: Container;
@@ -75,27 +73,33 @@ export class MainMenu extends EventEmitter {
 
     this.container = new Container();
 
-    // 1. Desk Background & Details
+    // 1. Executive Wood Background
     this.bgContainer = new Container();
     this.container.addChild(this.bgContainer);
 
     this.deskGraphics = new Graphics();
     this.bgContainer.addChild(this.deskGraphics);
 
-    this.pencilShavingsGraphics = new Graphics();
-    this.bgContainer.addChild(this.pencilShavingsGraphics);
-
-    // 2. Taped Ripped Notebook Header
-    this.headerContainer = new Container();
-    this.container.addChild(this.headerContainer);
+    // 2. Top App Bar (Avatar, Sound, Help)
+    this.topBarContainer = new Container();
+    this.container.addChild(this.topBarContainer);
 
     this.avatarBtn = this.createAvatarButton();
-    this.headerContainer.addChild(this.avatarBtn);
+    this.topBarContainer.addChild(this.avatarBtn);
 
-    this.menuBtn = this.createMenuDotsButton();
-    this.headerContainer.addChild(this.menuBtn);
+    const { btn: soundBtn, text: soundTxt } = this.createSoundButton();
+    this.soundBtn = soundBtn;
+    this.soundBtnText = soundTxt;
+    this.topBarContainer.addChild(this.soundBtn);
 
-    // 3. Floating Crossing Pens Artwork
+    this.helpBtn = this.createHelpButton();
+    this.topBarContainer.addChild(this.helpBtn);
+
+    // 3. Unique Brand Logo
+    this.logoContainer = new Container();
+    this.container.addChild(this.logoContainer);
+
+    // 4. Floating Crossing Pens Artwork
     this.pensArtContainer = new Container();
     this.container.addChild(this.pensArtContainer);
 
@@ -111,7 +115,7 @@ export class MainMenu extends EventEmitter {
     this.sparkburstContainer = new Container();
     this.pensArtContainer.addChild(this.sparkburstContainer);
 
-    // 4. Giant Butter-Yellow Play Button
+    // 5. Giant Butter-Yellow Play Button
     this.playBtnContainer = new Container();
     this.playBtnShadow = new Graphics();
     this.playBtnSurface = new Graphics();
@@ -125,28 +129,28 @@ export class MainMenu extends EventEmitter {
     const subStyle = new TextStyle({
       fontFamily: 'Nunito, sans-serif',
       fontSize: 14,
-      fill: 0xBAAFA1,
+      fill: 0xC8B89E,
       fontWeight: 'bold',
     });
     this.subText = new Text({ text: 'Played 0', style: subStyle });
     this.subText.anchor.set(0.5, 0);
     this.container.addChild(this.subText);
 
-    // 5. Bottom Action Cards & Feedback Button
+    // 6. Bottom Action Cards & Feedback Button
     this.bottomCardsContainer = new Container();
     this.container.addChild(this.bottomCardsContainer);
 
     this.feedbackBtn = this.createFeedbackButton();
     this.container.addChild(this.feedbackBtn);
 
-    // 6. Version Footer
+    // 7. Version Footer
     const verStyle = new TextStyle({
       fontFamily: 'Nunito, sans-serif',
       fontSize: 12,
-      fill: 0x827768,
+      fill: 0x8A7C6A,
       fontWeight: 'bold',
     });
-    this.versionText = new Text({ text: 'v1.5.4 · 52c2e5f', style: verStyle });
+    this.versionText = new Text({ text: 'Pen Fight Pro · v1.8', style: verStyle });
     this.versionText.anchor.set(0.5, 1);
     this.container.addChild(this.versionText);
 
@@ -157,6 +161,7 @@ export class MainMenu extends EventEmitter {
   public show(): void {
     this.container.visible = true;
     this.updateStats();
+    this.updateSoundIcon();
   }
 
   public hide(): void {
@@ -166,13 +171,18 @@ export class MainMenu extends EventEmitter {
   public updateStats(): void {
     if (this.progression) {
       const count = this.progression.getTotalMatchesPlayed();
-      this.subText.text = `Played ${count}`;
+      this.subText.text = `Played ${count} Matches`;
     }
+  }
+
+  public updateSoundIcon(): void {
+    const isMuted = soundManager.getMuted();
+    this.soundBtnText.text = isMuted ? '🔇' : '🔊';
   }
 
   /**
    * Continuous 60-120fps Animation Loop.
-   * Gives the two crossing pens a smooth, realistic floating/hovering physics motion.
+   * Floating physics with sine & cosine harmonics for both crossing pens.
    */
   public update(dt: number): void {
     if (!this.container.visible) return;
@@ -204,24 +214,35 @@ export class MainMenu extends EventEmitter {
     this.screenWidth = screenWidth;
     this.screenHeight = screenHeight;
 
-    this.drawMahoganyDesk(screenWidth, screenHeight);
-    this.drawPencilShavings(screenWidth, screenHeight);
+    this.drawExecutiveDesk(screenWidth, screenHeight);
 
-    // 1. Taped Ripped Notebook Paper Header
-    const headerW = Math.min(screenWidth - 16, 388);
-    const headerH = 158;
-    this.headerContainer.x = screenWidth / 2;
-    this.headerContainer.y = Math.max(16, screenHeight * 0.024);
-    this.drawRippedNotebookHeader(headerW, headerH);
+    // 1. Top Bar
+    this.topBarContainer.x = 0;
+    this.topBarContainer.y = Math.max(20, screenHeight * 0.03);
 
-    // 2. Center Crossing Pens
-    const pensCenterY = Math.max(260, screenHeight * 0.39);
+    this.avatarBtn.x = 36;
+    this.avatarBtn.y = 18;
+
+    this.soundBtn.x = screenWidth - 84;
+    this.soundBtn.y = 18;
+
+    this.helpBtn.x = screenWidth - 36;
+    this.helpBtn.y = 18;
+
+    // 2. Unique 3D Game Brand Logo
+    const logoY = Math.max(90, screenHeight * 0.13);
+    this.logoContainer.x = screenWidth / 2;
+    this.logoContainer.y = logoY;
+    this.drawUniqueBrandLogo();
+
+    // 3. Center Crossing Pens
+    const pensCenterY = Math.max(255, screenHeight * 0.38);
     this.pensArtContainer.x = screenWidth / 2;
     this.pensArtContainer.y = pensCenterY;
     this.drawMotionStreaks();
 
-    // 3. Play Button & Subtitle
-    const playY = Math.max(450, screenHeight * 0.64);
+    // 4. Play Button & Subtitle
+    const playY = Math.max(440, screenHeight * 0.63);
     this.playBtnContainer.x = screenWidth / 2;
     this.playBtnContainer.y = playY;
     this.buildPlayButton();
@@ -229,13 +250,13 @@ export class MainMenu extends EventEmitter {
     this.subText.x = screenWidth / 2;
     this.subText.y = playY + 76;
 
-    // 4. Bottom Action Cards: Leaderboard, Stats, Settings
-    const cardsY = playY + 112;
+    // 5. Bottom Action Cards (Leaderboard, Stats, Settings)
+    const cardsY = playY + 110;
     this.bottomCardsContainer.x = screenWidth / 2;
     this.bottomCardsContainer.y = cardsY;
     this.buildBottomCards();
 
-    // 5. Feedback button (aligned right below Settings)
+    // 6. Feedback Button (Right aligned below settings)
     const totalW = Math.min(this.screenWidth - 40, 360);
     const gap = 12;
     const cardW = (totalW - gap * 2) / 3;
@@ -244,277 +265,124 @@ export class MainMenu extends EventEmitter {
     this.feedbackBtn.x = screenWidth / 2 + rightCardCenterX;
     this.feedbackBtn.y = cardsY + 84;
 
-    // 6. Footer
+    // 7. Footer
     this.versionText.x = screenWidth / 2;
     this.versionText.y = screenHeight - 14;
 
     this.updateStats();
+    this.updateSoundIcon();
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 1. DESK BACKGROUND & PENCIL SHAVINGS
+  // 1. EXECUTIVE DARK WOOD DESK
   // ══════════════════════════════════════════════════════════════════════════
-  private drawMahoganyDesk(w: number, h: number): void {
+  private drawExecutiveDesk(w: number, h: number): void {
     const g = this.deskGraphics;
     g.clear();
 
-    // Rich dark walnut/mahogany hardwood base matching Image 3
-    g.rect(0, 0, w, h).fill({ color: 0x381E0C });
+    // Rich dark mahogany/walnut executive wood
+    g.rect(0, 0, w, h).fill({ color: 0x2D160A });
 
-    // Vertical plank grooves with subtle bevel highlight
+    // Clean vertical plank grooves with satin wood tone variation
     const plankW = Math.max(86, w / 4.2);
     for (let x = 0; x < w; x += plankW) {
-      // Dark recess groove
-      g.rect(x, 0, 2.5, h).fill({ color: 0x1E0F06, alpha: 0.65 });
-      // Soft plank highlight
-      g.rect(x + 2.5, 0, plankW - 3.5, h).fill({ color: 0x4D2A12, alpha: 0.16 });
-      // Subtle wood grain streaks
-      g.rect(x + plankW * 0.35, 0, 1.2, h).fill({ color: 0x221107, alpha: 0.28 });
-      g.rect(x + plankW * 0.72, 0, 1.2, h).fill({ color: 0x4A2810, alpha: 0.22 });
+      g.rect(x, 0, 2, h).fill({ color: 0x180A04, alpha: 0.65 });
+      g.rect(x + 2, 0, plankW - 3, h).fill({ color: 0x42200E, alpha: 0.16 });
+      g.rect(x + plankW * 0.5, 0, 1.2, h).fill({ color: 0x1F0D05, alpha: 0.24 });
     }
 
-    // Classroom desk carvings (pencil scratches, compass circle, faint tic-tac-toe)
-    // Compass scratch
-    g.circle(w * 0.16, h * 0.74, 22).stroke({ color: 0x1E0F06, width: 1.2, alpha: 0.35 });
-    // Tic-Tac-Toe carving near bottom-left
-    const tx = w * 0.12;
-    const ty = h * 0.88;
-    g.moveTo(tx + 8, ty).lineTo(tx + 8, ty + 24).stroke({ color: 0x1E0F06, width: 1.2, alpha: 0.35 });
-    g.moveTo(tx + 16, ty).lineTo(tx + 16, ty + 24).stroke({ color: 0x1E0F06, width: 1.2, alpha: 0.35 });
-    g.moveTo(tx, ty + 8).lineTo(tx + 24, ty + 8).stroke({ color: 0x1E0F06, width: 1.2, alpha: 0.35 });
-    g.moveTo(tx, ty + 16).lineTo(tx + 24, ty + 16).stroke({ color: 0x1E0F06, width: 1.2, alpha: 0.35 });
-
-    // Dark ink stain near right edge matching Image 3
-    g.ellipse(w * 0.88, h * 0.62, 14, 20).fill({ color: 0x1A202C, alpha: 0.42 });
-    g.circle(w * 0.86, h * 0.65, 5).fill({ color: 0x1A202C, alpha: 0.35 });
-  }
-
-  private drawPencilShavings(w: number, h: number): void {
-    const g = this.pencilShavingsGraphics;
-    g.clear();
-
-    // 1. Two curled yellow shavings at top-right (near title)
-    this.drawCurledShaving(g, w * 0.88, h * 0.41, 14, 0.4);
-    this.drawCurledShaving(g, w * 0.82, h * 0.43, 11, -0.6);
-
-    // 2. Curled shaving at bottom-left
-    this.drawCurledShaving(g, w * 0.10, h * 0.95, 15, 0.8);
-  }
-
-  private drawCurledShaving(g: Graphics, cx: number, cy: number, r: number, rot: number): void {
-    // Soft shadow
-    g.ellipse(cx + 2, cy + 3, r * 0.9, r * 0.6).fill({ color: 0x1A0E06, alpha: 0.35 });
-
-    // Fan-like scalloped yellow wooden ring with graphite core
-    g.beginPath();
-    g.arc(cx, cy, r, rot, rot + Math.PI * 1.3);
-    g.stroke({ color: 0xFACC15, width: 5.5, cap: 'round' });
-
-    // Inner natural wood facet
-    g.beginPath();
-    g.arc(cx, cy, r - 2.5, rot + 0.1, rot + Math.PI * 1.2);
-    g.stroke({ color: 0xFEF08A, width: 2.2, cap: 'round' });
-
-    // Dark graphite core lead edge
-    g.beginPath();
-    g.arc(cx, cy, r - 5, rot + 0.2, rot + Math.PI * 1.1);
-    g.stroke({ color: 0x334155, width: 2.4, cap: 'round' });
+    // Warm radial spotlight overlay from top center
+    g.ellipse(w / 2, h * 0.35, w * 0.7, h * 0.45).fill({ color: 0xFDE68A, alpha: 0.04 });
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 2. TAPED RIPPED NOTEBOOK PAPER HEADER
+  // 2. UNIQUE 3D GAME BRAND LOGO
   // ══════════════════════════════════════════════════════════════════════════
-  private drawRippedNotebookHeader(w: number, h: number): void {
-    const cc = this.headerContainer;
-    // Clear dynamic drawn background
-    const bg = new Graphics();
-    cc.addChildAt(bg, 0);
+  private drawUniqueBrandLogo(): void {
+    this.logoContainer.removeChildren();
 
-    // 1. Soft paper drop shadow onto desk
-    bg.rect(-w / 2, 4, w, h - 4).fill({ color: 0x140B04, alpha: 0.45 });
+    // 3D Shadow Layer
+    const shadowStyle = new TextStyle({
+      fontFamily: 'Fredoka, sans-serif',
+      fontSize: 56,
+      fill: COLORS.navyShadow,
+      stroke: { color: COLORS.navyShadow, width: 10 },
+      fontWeight: 'bold',
+      letterSpacing: 2.5,
+    });
+    const penShadow = new Text({ text: 'PEN ', style: shadowStyle });
+    penShadow.anchor.set(1, 0.5);
+    penShadow.x = -6;
+    penShadow.y = 6;
+    this.logoContainer.addChild(penShadow);
 
-    // 2. Cream Notebook Paper with Jagged Torn Bottom
-    bg.beginPath();
-    bg.moveTo(-w / 2, 0);
-    bg.lineTo(w / 2, 0);
-    bg.lineTo(w / 2, h - 16);
+    const fightShadow = new Text({ text: 'FIGHT', style: shadowStyle });
+    fightShadow.anchor.set(0, 0.5);
+    fightShadow.x = -6;
+    fightShadow.y = 6;
+    this.logoContainer.addChild(fightShadow);
 
-    // Jagged rip at bottom edge
-    const ripStep = 18;
-    for (let x = w / 2; x >= -w / 2; x -= ripStep) {
-      const ripY = (h - 16) + (Math.sin(x * 0.14) * 5 + ((x % 36 === 0) ? 6 : -4));
-      bg.lineTo(x, ripY);
-    }
-    bg.lineTo(-w / 2, h - 16);
-    bg.closePath();
-    bg.fill({ color: 0xFDFBF7 });
+    // Front Crisp Layer (Cream "PEN" + Butter Yellow "FIGHT")
+    const penStyle = new TextStyle({
+      fontFamily: 'Fredoka, sans-serif',
+      fontSize: 56,
+      fill: COLORS.cardCream,
+      stroke: { color: COLORS.navyBorder, width: 8 },
+      fontWeight: 'bold',
+      letterSpacing: 2.5,
+    });
+    const penText = new Text({ text: 'PEN ', style: penStyle });
+    penText.anchor.set(1, 0.5);
+    penText.x = -6;
+    this.logoContainer.addChild(penText);
 
-    // 3. Horizontal Light Blue Notebook Lines
-    for (let y = 34; y < h - 18; y += 22) {
-      bg.moveTo(-w / 2 + 12, y).lineTo(w / 2 - 12, y)
-        .stroke({ color: 0x93C5FD, width: 1.2, alpha: 0.45 });
-    }
+    const fightStyle = new TextStyle({
+      fontFamily: 'Fredoka, sans-serif',
+      fontSize: 56,
+      fill: COLORS.butterYellow,
+      stroke: { color: COLORS.navyBorder, width: 8 },
+      fontWeight: 'bold',
+      letterSpacing: 2.5,
+    });
+    const fightText = new Text({ text: 'FIGHT', style: fightStyle });
+    fightText.anchor.set(0, 0.5);
+    fightText.x = -6;
+    this.logoContainer.addChild(fightText);
 
-    // 4. Red Margin Line on Left & Punch Holes
-    const marginX = -w / 2 + 38;
-    bg.moveTo(marginX, 0).lineTo(marginX, h - 14)
-      .stroke({ color: 0xF87171, width: 1.4, alpha: 0.55 });
+    // Gold Ribbon Pill Banner: "★ PRO DESK COMBAT ★"
+    const pillW = 206;
+    const pillH = 28;
+    const pillY = 40;
 
-    // 3 Loose-leaf binder hole punch rings
-    const punchX = -w / 2 + 18;
-    bg.circle(punchX, 34, 4.5).fill({ color: 0x381E0C }).stroke({ color: 0x221107, width: 1.2 });
-    bg.circle(punchX, 78, 4.5).fill({ color: 0x381E0C }).stroke({ color: 0x221107, width: 1.2 });
-    bg.circle(punchX, 122, 4.5).fill({ color: 0x381E0C }).stroke({ color: 0x221107, width: 1.2 });
-
-    // 5. White Semi-translucent Masking Tape Strips pinning paper to desk
-    this.drawMaskingTape(bg, -w / 2 + 60, -8, 54, 18, -0.15);
-    this.drawMaskingTape(bg, w / 2 - 60, -8, 54, 18, 0.15);
-
-    // 6. Student Desk & Clock Square Badge pinned with tape in center
-    const badgeW = 76;
-    const badgeH = 76;
-    const badgeY = 32;
-
-    // Shadow
-    bg.roundRect(-badgeW / 2, badgeY + 4, badgeW, badgeH, 16)
-      .fill({ color: 0xCBD5E1, alpha: 0.65 });
-    // Surface
-    bg.roundRect(-badgeW / 2, badgeY, badgeW, badgeH, 16)
-      .fill({ color: 0xFFFFFF })
-      .stroke({ color: 0x2B333E, width: 3 });
-
-    // Clock & Crossing Pens Illustration inside badge
-    this.drawDeskClockIllustration(bg, 0, badgeY + badgeH / 2);
-
-    // Masking tape strip pinning the badge
-    this.drawMaskingTape(bg, 0, badgeY - 6, 42, 14, 0);
-
-    // 7. Chunky 3D "Pen Fight" cartoon logo
-    this.drawCartoonLogo(cc, 0, badgeY + badgeH + 34);
-
-    // 8. "THE SCHOOL DESK SERIES" Pill Banner
-    const pillW = 214;
-    const pillH = 26;
-    const pillY = badgeY + badgeH + 62;
-
-    bg.roundRect(-pillW / 2, pillY + 3, pillW, pillH, 13)
+    const pillShadow = new Graphics()
+      .roundRect(-pillW / 2, pillY + 3, pillW, pillH, 14)
       .fill({ color: COLORS.navyShadow });
-    bg.roundRect(-pillW / 2, pillY, pillW, pillH, 13)
-      .fill({ color: 0xFFFDF8 })
-      .stroke({ color: COLORS.navyBorder, width: 2.4 });
+    this.logoContainer.addChild(pillShadow);
+
+    const pillBg = new Graphics()
+      .roundRect(-pillW / 2, pillY, pillW, pillH, 14)
+      .fill({ color: 0xFDFBF5 })
+      .stroke({ color: COLORS.navyBorder, width: 2.5 });
+    this.logoContainer.addChild(pillBg);
 
     const bannerText = new Text({
-      text: 'THE SCHOOL DESK SERIES',
+      text: '★ PRO DESK COMBAT ★',
       style: new TextStyle({
         fontFamily: 'Nunito, sans-serif',
-        fontSize: 10.5,
+        fontSize: 11,
         fill: COLORS.navyBorder,
-        fontWeight: '800',
-        letterSpacing: 1.8,
+        fontWeight: '900',
+        letterSpacing: 2,
       })
     });
     bannerText.anchor.set(0.5, 0.5);
     bannerText.x = 0;
     bannerText.y = pillY + pillH / 2;
-    cc.addChild(bannerText);
-
-    // Position Header Buttons
-    this.avatarBtn.x = -w / 2 + 36;
-    this.avatarBtn.y = 26;
-
-    this.menuBtn.x = w / 2 - 36;
-    this.menuBtn.y = 26;
-  }
-
-  private drawDeskClockIllustration(g: Graphics, cx: number, cy: number): void {
-    // Student wooden desk
-    g.roundRect(cx - 24, cy + 8, 48, 8, 3).fill({ color: 0xFDE047 }).stroke({ color: 0x2B333E, width: 2 });
-    g.rect(cx - 18, cy + 16, 4, 10).fill({ color: 0x2B333E });
-    g.rect(cx + 14, cy + 16, 4, 10).fill({ color: 0x2B333E });
-
-    // Little crossed pens
-    g.moveTo(cx - 16, cy + 8).lineTo(cx + 6, cy - 14).stroke({ color: 0x3B82F6, width: 5.5, cap: 'round' });
-    g.moveTo(cx - 16, cy + 8).lineTo(cx + 6, cy - 14).stroke({ color: 0x1E3A8A, width: 1.8, cap: 'round' });
-
-    g.moveTo(cx + 16, cy + 8).lineTo(cx - 6, cy - 14).stroke({ color: 0xEA580C, width: 5.5, cap: 'round' });
-    g.moveTo(cx + 16, cy + 8).lineTo(cx - 6, cy - 14).stroke({ color: 0x9A3412, width: 1.8, cap: 'round' });
-
-    // Clock face
-    g.circle(cx, cy - 8, 14).fill({ color: 0xFFFFFF }).stroke({ color: 0x2B333E, width: 2.2 });
-    g.circle(cx, cy - 8, 2).fill({ color: 0x2B333E });
-    g.moveTo(cx, cy - 8).lineTo(cx, cy - 15).stroke({ color: 0x2B333E, width: 1.8, cap: 'round' });
-    g.moveTo(cx, cy - 8).lineTo(cx + 5, cy - 8).stroke({ color: 0xEF4444, width: 1.6, cap: 'round' });
-  }
-
-  private drawMaskingTape(g: Graphics, x: number, y: number, w: number, h: number, rot: number): void {
-    // Tape shadow
-    g.roundRect(x - w / 2, y + 1.5, w, h, 2)
-      .fill({ color: 0x1E130B, alpha: 0.18 });
-
-    // Semi-translucent textured masking tape
-    g.roundRect(x - w / 2, y, w, h, 2)
-      .fill({ color: 0xFAF6E9, alpha: 0.88 })
-      .stroke({ color: 0xDCD5C0, width: 1, alpha: 0.6 });
-  }
-
-  private drawCartoonLogo(parent: Container, cx: number, cy: number): void {
-    const logoCont = new Container();
-    logoCont.x = cx;
-    logoCont.y = cy;
-
-    // 3D Shadow layer
-    const shadowStyle = new TextStyle({
-      fontFamily: 'Fredoka, sans-serif',
-      fontSize: 52,
-      fill: COLORS.navyShadow,
-      stroke: { color: COLORS.navyShadow, width: 9 },
-      fontWeight: 'bold',
-      letterSpacing: 2,
-    });
-    const penShadow = new Text({ text: 'Pen ', style: shadowStyle });
-    penShadow.anchor.set(1, 0.5);
-    penShadow.x = -4;
-    penShadow.y = 5;
-    logoCont.addChild(penShadow);
-
-    const fightShadow = new Text({ text: 'Fight', style: shadowStyle });
-    fightShadow.anchor.set(0, 0.5);
-    fightShadow.x = -4;
-    fightShadow.y = 5;
-    logoCont.addChild(fightShadow);
-
-    // Front crisp layer
-    const penStyle = new TextStyle({
-      fontFamily: 'Fredoka, sans-serif',
-      fontSize: 52,
-      fill: COLORS.cardCream,
-      stroke: { color: COLORS.navyBorder, width: 8 },
-      fontWeight: 'bold',
-      letterSpacing: 2,
-    });
-    const penText = new Text({ text: 'Pen ', style: penStyle });
-    penText.anchor.set(1, 0.5);
-    penText.x = -4;
-    logoCont.addChild(penText);
-
-    const fightStyle = new TextStyle({
-      fontFamily: 'Fredoka, sans-serif',
-      fontSize: 52,
-      fill: COLORS.butterYellow,
-      stroke: { color: COLORS.navyBorder, width: 8 },
-      fontWeight: 'bold',
-      letterSpacing: 2,
-    });
-    const fightText = new Text({ text: 'Fight', style: fightStyle });
-    fightText.anchor.set(0, 0.5);
-    fightText.x = -4;
-    logoCont.addChild(fightText);
-
-    parent.addChild(logoCont);
+    this.logoContainer.addChild(bannerText);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 3. REALISTIC CROSSING PENS ARTWORK & MOTION PHYSICS
+  // 3. CROSSING PENS ARTWORK & MOTION PHYSICS
   // ══════════════════════════════════════════════════════════════════════════
   private buildPensGraphics(): void {
     // 1. Orange Cheap Ballpoint (slanted upwards ~30 deg)
@@ -522,7 +390,7 @@ export class MainMenu extends EventEmitter {
     this.orangePenContainer.removeChildren();
     this.orangePenContainer.addChild(og);
 
-    // Soft realistic drop shadow under orange pen
+    // Soft drop shadow
     og.ellipse(10, 24, 110, 10).fill({ color: 0x140B04, alpha: 0.32 });
 
     // Tail end cap plug (Orange)
@@ -557,7 +425,7 @@ export class MainMenu extends EventEmitter {
     og.fill({ color: 0xF59E0B }).stroke({ color: 0xB45309, width: 1.2 });
     og.circle(77.5, 0, 2).fill({ color: 0x1E293B });
 
-    this.baseOrangeRot = -0.52; // ~-30°
+    this.baseOrangeRot = -0.52;
     this.orangePenContainer.rotation = this.baseOrangeRot;
 
     // 2. Blue Rollerball / Gel Pen (crosses over from top-left to bottom-right ~14 deg)
@@ -565,7 +433,7 @@ export class MainMenu extends EventEmitter {
     this.bluePenContainer.removeChildren();
     this.bluePenContainer.addChild(bg);
 
-    // Soft drop shadow under blue pen
+    // Soft drop shadow
     bg.ellipse(8, 22, 115, 11).fill({ color: 0x140B04, alpha: 0.35 });
 
     // Translucent grey/smoke barrel
@@ -595,7 +463,7 @@ export class MainMenu extends EventEmitter {
     // Steel tungsten rollerball tip
     bg.circle(104, 0, 2.8).fill({ color: 0x334155 });
 
-    this.baseBlueRot = 0.24; // ~14°
+    this.baseBlueRot = 0.24;
     this.bluePenContainer.rotation = this.baseBlueRot;
 
     // 3. Golden Starburst Spark at collision intersection point
@@ -626,7 +494,6 @@ export class MainMenu extends EventEmitter {
     const g = this.motionStreaksGraphics;
     g.clear();
 
-    // Subtle white-grey speed streaks trailing the orange pen flick
     g.moveTo(-160, 96).lineTo(-80, 52).stroke({ color: 0xFFFFFF, width: 2.2, alpha: 0.35, cap: 'round' });
     g.moveTo(-140, 110).lineTo(-70, 72).stroke({ color: 0xFFFFFF, width: 1.8, alpha: 0.28, cap: 'round' });
     g.moveTo(-110, 118).lineTo(-45, 82).stroke({ color: 0xFFFFFF, width: 1.4, alpha: 0.22, cap: 'round' });
@@ -640,18 +507,15 @@ export class MainMenu extends EventEmitter {
     const btnH = 68;
     const btnR = 9999;
 
-    // 3D Shadow
     this.playBtnShadow.clear()
       .roundRect(-btnW / 2, 6, btnW, btnH, btnR)
       .fill({ color: COLORS.navyShadow });
 
-    // Butter Yellow Surface
     this.playBtnSurface.clear()
       .roundRect(-btnW / 2, 0, btnW, btnH, btnR)
       .fill({ color: COLORS.butterYellow })
       .stroke({ color: COLORS.navyBorder, width: 3.6 });
 
-    // Icon & Label
     this.playBtnContent.removeChildren();
 
     const playIcon = new Text({
@@ -683,7 +547,6 @@ export class MainMenu extends EventEmitter {
     playLabel.y = btnH / 2 - 1;
     this.playBtnContent.addChild(playLabel);
 
-    // Tactile Press Physics
     this.playBtnContainer.eventMode = 'static';
     this.playBtnContainer.cursor = 'pointer';
 
@@ -742,20 +605,17 @@ export class MainMenu extends EventEmitter {
       card.cursor = 'pointer';
       card.hitArea = new Rectangle(-cardW / 2, 0, cardW, cardH + 5);
 
-      // 3D Shadow
       const shadow = new Graphics()
         .roundRect(-cardW / 2, 5, cardW, cardH, cardR)
         .fill({ color: COLORS.navyShadow });
       card.addChild(shadow);
 
-      // Cream Surface
       const surface = new Graphics()
         .roundRect(-cardW / 2, 0, cardW, cardH, cardR)
         .fill({ color: COLORS.cardCream })
         .stroke({ color: COLORS.navyBorder, width: 2.8 });
       card.addChild(surface);
 
-      // Icon
       const icon = new Text({
         text: c.icon,
         style: new TextStyle({ fontSize: 22 })
@@ -764,7 +624,6 @@ export class MainMenu extends EventEmitter {
       icon.y = 8;
       surface.addChild(icon);
 
-      // Label
       const lbl = new Text({
         text: c.label,
         style: new TextStyle({
@@ -845,7 +704,7 @@ export class MainMenu extends EventEmitter {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 6. HEADER BUTTONS
+  // 6. TOP APP BAR (AVATAR, SOUND TOGGLE, HOW-TO-PLAY HELP)
   // ══════════════════════════════════════════════════════════════════════════
   private createAvatarButton(): Container {
     const btn = new Container();
@@ -859,7 +718,6 @@ export class MainMenu extends EventEmitter {
       .stroke({ color: 0x1E293B, width: 2.4 });
     btn.addChild(circle);
 
-    // Profile icon
     const icon = new Text({
       text: '👤',
       style: new TextStyle({ fontSize: 16 })
@@ -867,7 +725,6 @@ export class MainMenu extends EventEmitter {
     icon.anchor.set(0.5, 0.5);
     btn.addChild(icon);
 
-    // Orange notification badge dot on top-right
     const dot = new Graphics()
       .circle(r * 0.72, -r * 0.72, 4.2)
       .fill({ color: 0xF97316 })
@@ -883,7 +740,7 @@ export class MainMenu extends EventEmitter {
     return btn;
   }
 
-  private createMenuDotsButton(): Container {
+  private createSoundButton(): { btn: Container; text: Text } {
     const btn = new Container();
     btn.eventMode = 'static';
     btn.cursor = 'pointer';
@@ -891,27 +748,58 @@ export class MainMenu extends EventEmitter {
     const r = 18;
     const circle = new Graphics()
       .circle(0, 0, r)
-      .fill({ color: 0xE2E8F0 })
-      .stroke({ color: 0x334155, width: 2.4 });
+      .fill({ color: 0xFDFBF5 })
+      .stroke({ color: COLORS.navyBorder, width: 2.4 });
     btn.addChild(circle);
 
-    const dots = new Text({
-      text: '···',
+    const txt = new Text({
+      text: soundManager.getMuted() ? '🔇' : '🔊',
+      style: new TextStyle({ fontSize: 16 })
+    });
+    txt.anchor.set(0.5, 0.5);
+    btn.addChild(txt);
+
+    btn.on('pointerdown', (e) => {
+      e.stopPropagation();
+      const current = soundManager.getMuted();
+      const newState = current; // unmuting
+      soundManager.setEnabled(current);
+      txt.text = current ? '🔊' : '🔇';
+      this.emit('sound_toggle', current);
+    });
+
+    return { btn, text: txt };
+  }
+
+  private createHelpButton(): Container {
+    const btn = new Container();
+    btn.eventMode = 'static';
+    btn.cursor = 'pointer';
+
+    const r = 18;
+    const circle = new Graphics()
+      .circle(0, 0, r)
+      .fill({ color: 0xFEE39A })
+      .stroke({ color: COLORS.navyBorder, width: 2.4 });
+    btn.addChild(circle);
+
+    const txt = new Text({
+      text: '?',
       style: new TextStyle({
         fontFamily: 'Fredoka, sans-serif',
-        fontSize: 20,
-        fill: 0x334155,
+        fontSize: 19,
+        fill: COLORS.textDark,
         fontWeight: 'bold',
       })
     });
-    dots.anchor.set(0.5, 0.5);
-    dots.y = -2;
-    btn.addChild(dots);
+    txt.anchor.set(0.5, 0.5);
+    txt.y = -1;
+    btn.addChild(txt);
 
     btn.on('pointerdown', (e) => {
       e.stopPropagation();
       soundManager.play('ui_click');
-      this.emit('open_settings');
+      this.emit('open_help');
     });
 
     return btn;

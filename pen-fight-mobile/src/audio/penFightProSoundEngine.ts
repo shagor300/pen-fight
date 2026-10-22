@@ -153,10 +153,14 @@ export class PenFightProSoundSystem {
   }
 
   setMuted(muted: boolean): void {
-    this.isMuted = !muted;
+    this.isMuted = muted;
     if (this.isMuted) {
       this.stopAllTableSlides();
     }
+  }
+
+  getMuted(): boolean {
+    return this.isMuted || !this.enabled;
   }
 
   private getEffectiveGain(): number {

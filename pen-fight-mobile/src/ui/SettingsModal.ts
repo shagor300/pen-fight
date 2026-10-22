@@ -433,14 +433,8 @@ export class SettingsModal extends EventEmitter {
     cc.addChild(deskHdr);
     currY += 15;
 
-    const deskRow = this.createSegmentedControl(
+    const deskRow = this.createWoodThemeSelector(
       totalW,
-      [
-        { key: 'coffee', label: '☕ Espresso' },
-        { key: 'oak', label: '🪵 Teak' },
-        { key: 'mahogany', label: '🍷 Mahogany' },
-        { key: 'slate', label: '🌑 Slate' },
-      ],
       themeManager.getNormalizedDeskTheme(),
       async (val) => {
         this.settings.deskStyle = val as DeskStyle;
@@ -451,7 +445,7 @@ export class SettingsModal extends EventEmitter {
     );
     deskRow.y = currY;
     cc.addChild(deskRow);
-    currY += 38;
+    currY += 56;
 
     this.drawDashedDivider(cc, totalW, currY);
     currY += 8;
@@ -622,6 +616,94 @@ export class SettingsModal extends EventEmitter {
         e.stopPropagation();
         soundManager.play('ui_click');
         onSelect(item.key);
+      });
+
+      row.addChild(btn);
+    });
+
+    return row;
+  }
+
+  private createWoodThemeSelector(
+    totalW: number,
+    selectedKey: string,
+    onSelect: (key: string) => void
+  ): Container {
+    const row = new Container();
+    const woods = [
+      { key: 'coffee', label: 'Espresso', color: 0x2E180E, accent: 0xD97706, light: false },
+      { key: 'oak', label: 'Teak', color: 0xC08E52, accent: 0xF59E0B, light: true },
+      { key: 'mahogany', label: 'Mahogany', color: 0x4A1A16, accent: 0xEF4444, light: false },
+      { key: 'slate', label: 'Slate', color: 0x1E222A, accent: 0x64748B, light: false },
+    ];
+    const count = woods.length;
+    const gap = 8;
+    const itemW = (totalW - (count - 1) * gap) / count;
+    const itemH = 46;
+
+    woods.forEach((wood, idx) => {
+      const isSelected = wood.key === selectedKey;
+      const x = idx * (itemW + gap);
+
+      const btn = new Container();
+      btn.x = x;
+      btn.eventMode = 'static';
+      btn.cursor = 'pointer';
+
+      // 3D Shadow
+      const shadow = new Graphics()
+        .roundRect(0, 3, itemW, itemH, 10)
+        .fill({ color: COLORS.navyShadow });
+      btn.addChild(shadow);
+
+      // Wood Card Surface with realistic plank stripes
+      const surface = new Graphics()
+        .roundRect(0, 0, itemW, itemH, 10)
+        .fill({ color: wood.color })
+        .stroke({ color: isSelected ? 0xFACC15 : 0x2B333E, width: isSelected ? 2.8 : 2 });
+      
+      // Vertical wood grain highlight
+      surface.rect(itemW * 0.45, 2, 2, itemH - 4).fill({ color: 0xFFFFFF, alpha: 0.12 });
+      btn.addChild(surface);
+
+      // Mini wood swatch circle
+      const dot = new Graphics()
+        .circle(itemW / 2, 14, 7)
+        .fill({ color: wood.accent })
+        .stroke({ color: isSelected ? 0xFFFFFF : 0x2B333E, width: 1.5 });
+      btn.addChild(dot);
+
+      // Selected checkmark indicator
+      if (isSelected) {
+        const check = new Text({
+          text: '✓',
+          style: new TextStyle({ fontSize: 9, fill: 0xFFFFFF, fontWeight: 'bold' })
+        });
+        check.anchor.set(0.5, 0.5);
+        check.x = itemW / 2;
+        check.y = 14;
+        btn.addChild(check);
+      }
+
+      // Wood Label
+      const txt = new Text({
+        text: wood.label,
+        style: new TextStyle({
+          fontFamily: 'Fredoka, sans-serif',
+          fontSize: 10.5,
+          fill: wood.light ? 0x2B333E : 0xF8FAFC,
+          fontWeight: 'bold',
+        }),
+      });
+      txt.anchor.set(0.5, 0.5);
+      txt.x = itemW / 2;
+      txt.y = 32;
+      btn.addChild(txt);
+
+      btn.on('pointerdown', (e) => {
+        e.stopPropagation();
+        soundManager.play('ui_click');
+        onSelect(wood.key);
       });
 
       row.addChild(btn);
