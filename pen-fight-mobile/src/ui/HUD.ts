@@ -147,7 +147,9 @@ export class HUD extends EventEmitter {
     this.screenWidth = screenWidth;
     this.screenHeight = screenHeight;
 
-    const topY = Math.max(12, screenHeight * 0.018);
+    // Shift below phone status bar (clock, battery, notch)
+    const safeTop = Math.max(46, Math.round(screenHeight * 0.055));
+    const topY = safeTop;
 
     this.scorePillContainer.x = 18;
     this.scorePillContainer.y = topY;
@@ -159,10 +161,10 @@ export class HUD extends EventEmitter {
     this.leaveButton.y = topY;
 
     this.statusPillContainer.x = screenWidth / 2;
-    this.statusPillContainer.y = topY + 46;
+    this.statusPillContainer.y = topY + 44;
 
     this.timerContainer.x = screenWidth / 2;
-    this.timerContainer.y = topY + 84;
+    this.timerContainer.y = topY + 80;
   }
 
   private createPauseButton(): Container {

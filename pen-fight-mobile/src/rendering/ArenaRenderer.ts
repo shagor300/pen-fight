@@ -21,7 +21,7 @@ export class ArenaRenderer {
     canvasW: number,
     canvasH: number,
     engine: PenFightEngine,
-    deskStyle: 'clean' | 'old',
+    deskStyle: string,
     penLook: 'real' | 'classic',
     showAimGuide = true,
     reduceMotion = false
@@ -78,9 +78,10 @@ export class ArenaRenderer {
     }
   }
 
-  private static getOrBuildDeskTexture(w: number, h: number, deskStyle: 'clean' | 'old'): HTMLCanvasElement {
+  private static getOrBuildDeskTexture(w: number, h: number, deskStyle: string): HTMLCanvasElement {
     const texScale = 2;
-    const key = `${Math.round(w)}x${Math.round(h)}_${deskStyle}_${texScale}`;
+    const style = deskStyle === 'clean' ? 'oak' : (deskStyle === 'old' ? 'coffee' : (deskStyle || 'coffee'));
+    const key = `${Math.round(w)}x${Math.round(h)}_${style}_${texScale}`;
     if (this.cachedDeskCanvas && this.cachedDeskKey === key) {
       return this.cachedDeskCanvas;
     }
@@ -91,25 +92,61 @@ export class ArenaRenderer {
     const c = off.getContext('2d')!;
     c.scale(texScale, texScale);
 
-    // 1. Multi-plank rich oak/walnut base with subtle per-plank tone variation
+    // 1. Multi-plank wood base with curated palette per style
     const plankCount = 5;
     const plankW = w / plankCount;
-    const cleanTones = ['#d9b38c', '#cfa57b', '#dbb68f', '#cda277', '#d6af86'];
-    const oldTones = ['#ab7e53', '#9d7046', '#a5784d', '#94673e', '#a1744a'];
+
+    let tones: string[];
+    let midTone: string;
+    let grainColor: string;
+    let knotColor: string;
+    let seamDark: string;
+    let seamLight: string;
+
+    if (style === 'oak') {
+      tones = ['#d9b38c', '#cfa57b', '#dbb68f', '#cda277', '#d6af86'];
+      midTone = '#dfb992';
+      grainColor = 'rgba(105, 65, 30, 0.14)';
+      knotColor = 'rgba(75, 42, 14, 0.28)';
+      seamDark = 'rgba(55, 30, 10, 0.24)';
+      seamLight = 'rgba(255, 245, 225, 0.18)';
+    } else if (style === 'mahogany') {
+      tones = ['#4a1c18', '#3e1512', '#54201c', '#3a1310', '#4c1d19'];
+      midTone = '#5c2420';
+      grainColor = 'rgba(28, 8, 6, 0.35)';
+      knotColor = 'rgba(24, 6, 4, 0.46)';
+      seamDark = 'rgba(24, 6, 5, 0.52)';
+      seamLight = 'rgba(255, 185, 175, 0.14)';
+    } else if (style === 'slate') {
+      tones = ['#20242c', '#1a1d24', '#262a34', '#171920', '#222630'];
+      midTone = '#2c313c';
+      grainColor = 'rgba(8, 10, 14, 0.45)';
+      knotColor = 'rgba(6, 8, 12, 0.58)';
+      seamDark = 'rgba(8, 10, 13, 0.65)';
+      seamLight = 'rgba(145, 170, 205, 0.14)';
+    } else {
+      // Default: 'coffee' (Dark Espresso Hardwood)
+      tones = ['#2e180e', '#241209', '#341d11', '#221008', '#2d170d'];
+      midTone = '#3a2014';
+      grainColor = 'rgba(14, 7, 3, 0.36)';
+      knotColor = 'rgba(12, 6, 3, 0.50)';
+      seamDark = 'rgba(12, 6, 3, 0.58)';
+      seamLight = 'rgba(215, 168, 110, 0.16)';
+    }
 
     for (let p = 0; p < plankCount; p++) {
       const px = p * plankW;
       const pGrad = c.createLinearGradient(px, 0, px + plankW, h);
-      const baseCol = deskStyle === 'clean' ? cleanTones[p % cleanTones.length] : oldTones[p % oldTones.length];
+      const baseCol = tones[p % tones.length];
       pGrad.addColorStop(0, baseCol);
-      pGrad.addColorStop(0.5, deskStyle === 'clean' ? '#dfb992' : '#b2855a');
+      pGrad.addColorStop(0.5, midTone);
       pGrad.addColorStop(1, baseCol);
       c.fillStyle = pGrad;
       c.fillRect(px, 0, plankW + 1, h);
     }
 
     // 2. Organic Wood Grain Fibers & Wood Knots
-    c.strokeStyle = deskStyle === 'clean' ? 'rgba(105, 65, 30, 0.13)' : 'rgba(52, 28, 10, 0.24)';
+    c.strokeStyle = grainColor;
     c.lineWidth = 1.05;
     for (let gx = 6; gx < w; gx += 8.5) {
       c.beginPath();
@@ -133,7 +170,7 @@ export class ArenaRenderer {
     for (const k of knots) {
       c.save();
       c.translate(k.x, k.y);
-      c.strokeStyle = deskStyle === 'clean' ? 'rgba(105, 65, 30, 0.16)' : 'rgba(48, 25, 8, 0.28)';
+      c.strokeStyle = knotColor;
       c.lineWidth = 1.1;
       for (let r = 0.4; r <= 1.0; r += 0.3) {
         c.beginPath();
@@ -311,36 +348,76 @@ export class ArenaRenderer {
     canvasW: number,
     canvasH: number,
     engine: PenFightEngine,
-    deskStyle: 'clean' | 'old'
+    deskStyle: string
   ): void {
-    // Classroom floor backdrop
-    ctx.fillStyle = '#f5edd6';
+    const style = deskStyle === 'clean' ? 'oak' : (deskStyle === 'old' ? 'coffee' : (deskStyle || 'coffee'));
+
+    // Moody executive ambient floor backdrop (dark, luxury & soothing - zero harsh glare)
+    const floorGrad = ctx.createRadialGradient(
+      canvasW * 0.5,
+      canvasH * 0.45,
+      Math.min(canvasW, canvasH) * 0.25,
+      canvasW * 0.5,
+      canvasH * 0.5,
+      Math.max(canvasW, canvasH) * 0.85
+    );
+    floorGrad.addColorStop(0, '#1c1612');
+    floorGrad.addColorStop(0.65, '#130f0c');
+    floorGrad.addColorStop(1, '#0a0806');
+    ctx.fillStyle = floorGrad;
     ctx.fillRect(0, 0, canvasW, canvasH);
 
     const d = engine.outerDesk;
 
     ctx.save();
     // 1. Deep Floor Drop Shadow under the Desk
-    ctx.fillStyle = 'rgba(25, 16, 8, 0.26)';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
     ctx.beginPath();
-    ctx.roundRect(d.x - 4, d.y + 4, d.w + 12, d.h + 14, 24);
+    ctx.roundRect(d.x - 4, d.y + 6, d.w + 12, d.h + 16, 24);
     ctx.fill();
 
-    // 2. 3D Walnut Outer Desk Bevel Frame
+    // 2. 3D Outer Desk Bevel Frame
     const frameGrad = ctx.createLinearGradient(d.x, d.y, d.x, d.y + d.h);
-    frameGrad.addColorStop(0, '#6d4527');
-    frameGrad.addColorStop(0.5, '#54331b');
-    frameGrad.addColorStop(1, '#3e2411');
+    let rimStroke = 'rgba(224, 168, 92, 0.65)';
+    let frameBorder = '#140804';
+
+    if (style === 'oak') {
+      frameGrad.addColorStop(0, '#6d4527');
+      frameGrad.addColorStop(0.5, '#54331b');
+      frameGrad.addColorStop(1, '#3e2411');
+      frameBorder = '#251508';
+      rimStroke = 'rgba(235, 195, 135, 0.65)';
+    } else if (style === 'mahogany') {
+      frameGrad.addColorStop(0, '#541e19');
+      frameGrad.addColorStop(0.5, '#3e130f');
+      frameGrad.addColorStop(1, '#290a07');
+      frameBorder = '#1e0604';
+      rimStroke = 'rgba(238, 162, 142, 0.62)';
+    } else if (style === 'slate') {
+      frameGrad.addColorStop(0, '#2e3541');
+      frameGrad.addColorStop(0.5, '#20252e');
+      frameGrad.addColorStop(1, '#14171d');
+      frameBorder = '#0d0f13';
+      rimStroke = 'rgba(130, 160, 195, 0.55)';
+    } else {
+      // Default: 'coffee' (Dark Espresso Hardwood)
+      frameGrad.addColorStop(0, '#462412');
+      frameGrad.addColorStop(0.5, '#32180b');
+      frameGrad.addColorStop(1, '#1f0d06');
+      frameBorder = '#140804';
+      rimStroke = 'rgba(224, 168, 92, 0.65)';
+    }
+
     ctx.fillStyle = frameGrad;
-    ctx.strokeStyle = '#2b333e';
+    ctx.strokeStyle = frameBorder;
     ctx.lineWidth = 3.6;
     ctx.beginPath();
     ctx.roundRect(d.x - 7, d.y - 6, d.w + 14, d.h + 15, 22);
     ctx.fill();
     ctx.stroke();
 
-    // 3. Warm Brass/Oak Inner Rim Highlight
-    ctx.strokeStyle = 'rgba(228, 182, 128, 0.62)';
+    // 3. Warm Inner Rim Highlight
+    ctx.strokeStyle = rimStroke;
     ctx.lineWidth = 1.6;
     ctx.beginPath();
     ctx.roundRect(d.x - 2, d.y - 1.5, d.w + 4, d.h + 5, 18);

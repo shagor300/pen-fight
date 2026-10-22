@@ -10,6 +10,7 @@ import { ProgressionManager } from '../core/ProgressionManager';
 import { COLORS } from '../config/gameConstants';
 import { renderPenToCanvas, PIXELS_PER_METER } from '../rendering/RealPenRenderer';
 import { soundManager } from '../audio/SoundAndHaptics';
+import { themeManager, DESK_WOOD_THEMES } from './ThemeManager';
 import EventEmitter from 'eventemitter3';
 
 export type GameMode = 'VS_AI' | 'TWO_PLAYER';
@@ -57,6 +58,7 @@ export class PenSelectorModal extends EventEmitter {
   // 5-Star Segmented Stats
   private statBarsContainer: Container;
   private skillBox: Container;
+  private deskWoodBar: Container;
 
   // Action / Equip Row
   private bottomControlsContainer: Container;
@@ -206,6 +208,10 @@ export class PenSelectorModal extends EventEmitter {
     this.skillBox = new Container();
     this.cardContent.addChild(this.skillBox);
 
+    // 8b. Desk Wood Theme Selector
+    this.deskWoodBar = new Container();
+    this.cardContent.addChild(this.deskWoodBar);
+
     // 9. Bottom Action Buttons Container
     this.bottomControlsContainer = new Container();
     this.cardContent.addChild(this.bottomControlsContainer);
@@ -280,21 +286,12 @@ export class PenSelectorModal extends EventEmitter {
     this.modeTitleText.x = 0;
     this.modeTitleText.y = topY + 14;
 
-    // Stage Box
+    // Stage Box (Realistic Hardwood Showcase Stage)
     const stageW = cardW - 36;
-    const stageH = 140;
+    const stageH = 136;
     const stageY = topY + 38;
 
-    // Dark Velvet Studio Spotlight Stage
-    this.stageBox.clear()
-      .roundRect(-stageW / 2, stageY, stageW, stageH, 16)
-      .fill({ color: 0x0F172A })
-      .stroke({ color: 0x334155, width: 2 });
-
-    // Add inner spotlight glow (subtle radial effect via layered fills)
-    this.stageBox
-      .roundRect(-stageW / 2 + 4, stageY + 4, stageW - 8, stageH - 8, 14)
-      .fill({ color: 0x1E293B, alpha: 0.7 });
+    this.drawStageBox(stageW, stageH, stageY);
 
     this.penPreviewContainer.x = 0;
     this.penPreviewContainer.y = stageY + stageH / 2;
@@ -309,34 +306,38 @@ export class PenSelectorModal extends EventEmitter {
     this.dotsContainer.y = stageY + stageH - 12;
 
     // Identity texts
-    const textY = stageY + stageH + 10;
+    const textY = stageY + stageH + 8;
     this.titleText.x = 0;
     this.titleText.y = textY;
 
     this.taglineText.x = 0;
-    this.taglineText.y = textY + 28;
+    this.taglineText.y = textY + 26;
 
     // Progression bar
-    const progY = textY + 50;
+    const progY = textY + 46;
     this.levelBadgeContainer.x = 0;
     this.levelBadgeContainer.y = progY;
 
     this.xpBar.x = 0;
-    this.xpBar.y = progY + 18;
+    this.xpBar.y = progY + 16;
 
     this.xpText.x = 0;
-    this.xpText.y = progY + 18;
+    this.xpText.y = progY + 16;
 
     this.perkText.x = 0;
-    this.perkText.y = progY + 30;
+    this.perkText.y = progY + 28;
 
     // 5-Star Segmented Stat Bars
     this.statBarsContainer.x = -cardW / 2 + 24;
-    this.statBarsContainer.y = progY + 50;
+    this.statBarsContainer.y = progY + 46;
 
     // Skill Inset Box
     this.skillBox.x = 0;
-    this.skillBox.y = progY + 148;
+    this.skillBox.y = progY + 140;
+
+    // Desk Wood Theme Selector
+    this.deskWoodBar.x = 0;
+    this.deskWoodBar.y = progY + 192;
 
     // Bottom Controls
     this.bottomControlsContainer.x = 0;
@@ -399,6 +400,9 @@ export class PenSelectorModal extends EventEmitter {
 
     // Render Skill Box
     this.drawSkillBox(pen);
+
+    // Render Desk Wood Selector
+    this.drawDeskWoodBar();
 
     // Render Bottom Action Controls
     this.buildBottomControls();
@@ -481,10 +485,13 @@ export class PenSelectorModal extends EventEmitter {
       fontWeight: 'bold',
     });
 
-    const totalW = Math.min(this.screenWidth - 24, 390) - 48;
-    const starStartX = 84;
-    const availableW = totalW - starStartX;
-    const starW = (availableW - 4 * 6) / 5;
+    const cardW = Math.min(this.screenWidth - 24, 390);
+    const totalW = cardW - 48;
+    const starStartX = 58;
+    const badgeW = 28;
+    const gap = 5;
+    const availableForBars = totalW - starStartX - badgeW - 10;
+    const starW = Math.max(16, Math.floor((availableForBars - 4 * gap) / 5));
 
     const SKILL_COLORS: { fill: number; stroke: number; glow: string }[] = [
       { fill: 0xF59E0B, stroke: 0xD97706, glow: 'rgba(245,158,11,0.45)' },  // Weight: Amber
@@ -505,7 +512,7 @@ export class PenSelectorModal extends EventEmitter {
       const color = SKILL_COLORS[idx];
       const starsG = new Graphics();
       for (let s = 1; s <= 5; s++) {
-        const sx = starStartX + (s - 1) * (starW + 6);
+        const sx = starStartX + (s - 1) * (starW + gap);
         const isFilled = s <= value;
         starsG.roundRect(sx, y + 1, starW, 11, 3.5)
           .fill({ color: isFilled ? color.fill : 0xD8CFC2 })
@@ -523,7 +530,7 @@ export class PenSelectorModal extends EventEmitter {
           fontWeight: '800',
         })
       });
-      numBadge.x = starStartX + 5 * (starW + 6) + 4;
+      numBadge.x = starStartX + 5 * (starW + gap) + 4;
       numBadge.y = y + 1;
       this.statBarsContainer.addChild(numBadge);
     });
@@ -566,6 +573,178 @@ export class PenSelectorModal extends EventEmitter {
     desc.x = -boxW / 2 + 10;
     desc.y = 22;
     this.skillBox.addChild(desc);
+  }
+
+  private drawStageBox(stageW: number, stageH: number, stageY: number): void {
+    this.stageBox.clear();
+    const woodTheme = themeManager.getNormalizedDeskTheme();
+
+    let baseColor = 0x2A170E;
+    let plankColors = [0x22120A, 0x2C180E, 0x24130B, 0x301B10];
+    let grainColor = 0x140804;
+    let grainAlpha = 0.35;
+    let frameColor = 0x542E16;
+    let rimColor = 0xD97706;
+    let spotColor = 0xF59E0B;
+    let spotAlpha = 0.12;
+
+    if (woodTheme === 'oak') {
+      baseColor = 0xB88448;
+      plankColors = [0xC99658, 0xB37F43, 0xD09E60, 0xBD894B];
+      grainColor = 0x784414;
+      grainAlpha = 0.22;
+      frameColor = 0x6D4527;
+      rimColor = 0xEBBF87;
+      spotColor = 0xFFFBEB;
+      spotAlpha = 0.18;
+    } else if (woodTheme === 'mahogany') {
+      baseColor = 0x421612;
+      plankColors = [0x4C1C18, 0x3B1310, 0x54201C, 0x3E1512];
+      grainColor = 0x200705;
+      grainAlpha = 0.40;
+      frameColor = 0x5A201A;
+      rimColor = 0xEEA28E;
+      spotColor = 0xF87171;
+      spotAlpha = 0.10;
+    } else if (woodTheme === 'slate') {
+      baseColor = 0x1A1D24;
+      plankColors = [0x222630, 0x171920, 0x262A34, 0x1C1F28];
+      grainColor = 0x0C0E12;
+      grainAlpha = 0.50;
+      frameColor = 0x2C323D;
+      rimColor = 0x82A0C3;
+      spotColor = 0x60A5FA;
+      spotAlpha = 0.10;
+    }
+
+    // Outer desk plank base
+    this.stageBox
+      .roundRect(-stageW / 2, stageY, stageW, stageH, 16)
+      .fill({ color: baseColor })
+      .stroke({ color: frameColor, width: 3.2 });
+
+    // 4 Horizontal Planks
+    const plankH = (stageH - 8) / 4;
+    for (let p = 0; p < 4; p++) {
+      const py = stageY + 4 + p * plankH;
+      const col = plankColors[p % plankColors.length];
+      this.stageBox
+        .rect(-stageW / 2 + 4, py, stageW - 8, plankH)
+        .fill({ color: col });
+      if (p > 0) {
+        this.stageBox
+          .rect(-stageW / 2 + 4, py - 0.5, stageW - 8, 1)
+          .fill({ color: 0x000000, alpha: 0.35 });
+      }
+    }
+
+    // Subtle wood grain lines across
+    for (let gy = stageY + 12; gy < stageY + stageH - 8; gy += 14) {
+      this.stageBox
+        .rect(-stageW / 2 + 8, gy, stageW - 16, 1)
+        .fill({ color: grainColor, alpha: grainAlpha });
+    }
+
+    // Warm radial spotlight glow in the center
+    this.stageBox
+      .ellipse(0, stageY + stageH / 2, stageW * 0.42, stageH * 0.38)
+      .fill({ color: spotColor, alpha: spotAlpha });
+
+    // Pen contact drop shadow on table surface
+    this.stageBox
+      .ellipse(0, stageY + stageH / 2 + 16, stageW * 0.35, 7)
+      .fill({ color: 0x000000, alpha: 0.42 });
+
+    // Inner brass/gold highlight rim
+    this.stageBox
+      .roundRect(-stageW / 2 + 3, stageY + 3, stageW - 6, stageH - 6, 13)
+      .stroke({ color: rimColor, width: 1.2, alpha: 0.65 });
+  }
+
+  private drawDeskWoodBar(): void {
+    this.deskWoodBar.removeChildren();
+    const cardW = Math.min(this.screenWidth - 24, 390);
+    const barW = cardW - 44;
+    const currentTheme = themeManager.getNormalizedDeskTheme();
+
+    const title = new Text({
+      text: 'DESK WOOD',
+      style: new TextStyle({
+        fontFamily: 'Fredoka, sans-serif',
+        fontSize: 10,
+        fill: 0x78716C,
+        fontWeight: 'bold',
+        letterSpacing: 0.8,
+      })
+    });
+    title.x = -barW / 2;
+    title.y = -8;
+    this.deskWoodBar.addChild(title);
+
+    const chipH = 25;
+    const itemW = (barW - 12) / 4;
+    const startX = -barW / 2 + itemW / 2;
+
+    DESK_WOOD_THEMES.forEach((theme, idx) => {
+      const isSel = currentTheme === theme.id;
+      const chip = new Container();
+      chip.x = startX + idx * (itemW + 4);
+      chip.y = 12;
+
+      // Drop shadow for selected
+      if (isSel) {
+        const shadow = new Graphics()
+          .roundRect(-itemW / 2, -chipH / 2 + 2, itemW, chipH, 8)
+          .fill({ color: 0x1E293B, alpha: 0.25 });
+        chip.addChild(shadow);
+      }
+
+      // Chip surface
+      const surface = new Graphics()
+        .roundRect(-itemW / 2, -chipH / 2, itemW, chipH, 8)
+        .fill({ color: isSel ? 0xFFFDF8 : 0xEDE5D8 })
+        .stroke({ color: isSel ? theme.accent : 0xDACDB8, width: isSel ? 2.2 : 1.2 });
+      chip.addChild(surface);
+
+      // Wood Color Swatch Circle
+      const swatch = new Graphics()
+        .circle(-itemW / 2 + 10, 0, 4.5)
+        .fill({ color: theme.color })
+        .stroke({ color: 0x000000, width: 1, alpha: 0.25 });
+      chip.addChild(swatch);
+
+      // Label
+      const txt = new Text({
+        text: theme.label,
+        style: new TextStyle({
+          fontFamily: 'Fredoka, sans-serif',
+          fontSize: 9.5,
+          fill: isSel ? 0x1E293B : 0x57534E,
+          fontWeight: isSel ? 'bold' : '600',
+        })
+      });
+      txt.anchor.set(0, 0.5);
+      txt.x = -itemW / 2 + 18;
+      txt.y = 0;
+      chip.addChild(txt);
+
+      chip.eventMode = 'static';
+      chip.cursor = 'pointer';
+      chip.on('pointerdown', async () => {
+        soundManager.play('ui_click');
+        await themeManager.setDeskTheme(theme.id);
+        const cardW = Math.min(this.screenWidth - 24, 390);
+        const cardH = Math.min(this.screenHeight - 24, 690);
+        const topY = -cardH / 2 + 16;
+        const stageW = cardW - 36;
+        const stageH = 136;
+        const stageY = topY + 38;
+        this.drawStageBox(stageW, stageH, stageY);
+        this.drawDeskWoodBar();
+      });
+
+      this.deskWoodBar.addChild(chip);
+    });
   }
 
   private buildBottomControls(): void {

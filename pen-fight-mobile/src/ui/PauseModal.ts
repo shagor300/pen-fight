@@ -6,6 +6,7 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { COLORS } from '../config/gameConstants';
 import { soundManager } from '../audio/SoundAndHaptics';
+import { themeManager, DESK_WOOD_THEMES } from './ThemeManager';
 import EventEmitter from 'eventemitter3';
 
 export interface PauseModalData {
@@ -175,20 +176,32 @@ export class PauseModal extends EventEmitter {
     const btnH = 44;
     let curY = topY + 96;
 
-    const actions: { icon: string; label: string; bg: number; event: string }[] = [
-      { icon: '▷', label: 'Resume', bg: 0xCDEAC0, event: 'resume' },
-      { icon: '↻', label: 'Restart match', bg: 0xF5EFE2, event: 'restart' },
-      { icon: '✎', label: 'Change pens', bg: COLORS.cardCream, event: 'change_pens' },
-      { icon: '⛶', label: 'Full screen', bg: COLORS.cardCream, event: 'fullscreen' },
-      { icon: '⚙', label: 'Settings', bg: COLORS.cardCream, event: 'settings' },
-      { icon: '?', label: 'How to play', bg: COLORS.cardCream, event: 'help' },
-      { icon: '🏠', label: 'Main menu', bg: COLORS.cardCream, event: 'main_menu' },
+    const activeWood = DESK_WOOD_THEMES.find(t => t.id === themeManager.getNormalizedDeskTheme()) || DESK_WOOD_THEMES[0];
+
+    const actions: { icon: string; label: string; bg: number; onClick: () => void }[] = [
+      { icon: '▷', label: 'Resume', bg: 0xCDEAC0, onClick: () => this.emit('resume') },
+      { icon: '↻', label: 'Restart match', bg: 0xF5EFE2, onClick: () => this.emit('restart') },
+      { icon: '✎', label: 'Change pens', bg: COLORS.cardCream, onClick: () => this.emit('change_pens') },
+      {
+        icon: activeWood.icon,
+        label: `Desk Wood: ${activeWood.label}`,
+        bg: COLORS.cardCream,
+        onClick: async () => {
+          const curIdx = DESK_WOOD_THEMES.findIndex(t => t.id === activeWood.id);
+          const nextTheme = DESK_WOOD_THEMES[(curIdx + 1) % DESK_WOOD_THEMES.length];
+          await themeManager.setDeskTheme(nextTheme.id);
+          this.renderModal();
+        }
+      },
+      { icon: '⚙', label: 'Settings', bg: COLORS.cardCream, onClick: () => this.emit('settings') },
+      { icon: '?', label: 'How to play', bg: COLORS.cardCream, onClick: () => this.emit('help') },
+      { icon: '🏠', label: 'Main menu', bg: COLORS.cardCream, onClick: () => this.emit('main_menu') },
     ];
 
     actions.forEach((act) => {
       const btn = this.createRowButton(btnW, btnH, act.icon, act.label, act.bg, () => {
         soundManager.play('ui_click');
-        this.emit(act.event);
+        act.onClick();
       });
       btn.x = 0;
       btn.y = curY;

@@ -224,8 +224,8 @@ export class PenFightEngine {
   // ════════════════════════════════════════════════════════════════════════
   public updateDeskGeometry(canvasW: number, canvasH: number): void {
     const marginX = Math.max(16, Math.round(canvasW * 0.035));
-    const marginTop = Math.max(54, Math.round(canvasH * 0.068));
-    const marginBottom = Math.max(18, Math.round(canvasH * 0.025));
+    const marginTop = Math.max(94, Math.round(canvasH * 0.115));
+    const marginBottom = Math.max(16, Math.round(canvasH * 0.022));
 
     const oldW = this.outerDesk.w || 1;
     const oldH = this.outerDesk.h || 1;

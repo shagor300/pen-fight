@@ -432,7 +432,7 @@ export class GameManager extends EventEmitter {
     this.arenaCtx.save();
     this.arenaCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const deskStyle = (themeManager.prefs.deskTheme === 'old-school' || this.settingsModal.settings.deskStyle === 'old_school') ? 'old' : 'clean';
+    const deskStyle = themeManager.getNormalizedDeskTheme();
     const penLook = (themeManager.prefs.penLook || this.settingsModal.settings.penLook) === 'classic' ? 'classic' : 'real';
 
     if (this.engine.pens.length < 2) {

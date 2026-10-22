@@ -15,7 +15,7 @@ import { soundManager } from '../audio/SoundAndHaptics';
 import { themeManager, UiThemeMode, PenLookMode } from './ThemeManager';
 import EventEmitter from 'eventemitter3';
 
-export type DeskStyle = 'clean' | 'old_school';
+export type DeskStyle = 'coffee' | 'oak' | 'mahogany' | 'slate' | 'clean' | 'old_school';
 export type PenLook = 'classic' | 'real';
 
 export type PhysicsModeKey = 'classic' | 'real';
@@ -45,7 +45,7 @@ export class SettingsModal extends EventEmitter {
 
   public settings: GameSettings = {
     uiTheme: 'light',
-    deskStyle: 'old_school',
+    deskStyle: 'coffee',
     penLook: 'real',
     physicsMode: 'classic',
     aimGuide: true,
@@ -258,13 +258,15 @@ export class SettingsModal extends EventEmitter {
     const deskRow = this.createSegmentedControl(
       totalW,
       [
-        { key: 'clean', label: '✨ Clean desk' },
-        { key: 'old_school', label: '🖍️ Old school desk' },
+        { key: 'coffee', label: '☕ Espresso' },
+        { key: 'oak', label: '🪵 Teak' },
+        { key: 'mahogany', label: '🍷 Mahogany' },
+        { key: 'slate', label: '🌑 Slate' },
       ],
-      this.settings.deskStyle,
+      themeManager.getNormalizedDeskTheme(),
       async (val) => {
         this.settings.deskStyle = val as DeskStyle;
-        await themeManager.setDeskTheme(val === 'old_school' ? 'old-school' : 'clean');
+        await themeManager.setDeskTheme(val as any);
         this.emit('settings_changed', this.settings);
         this.renderContent();
       }
