@@ -203,10 +203,12 @@ export class PenFightEngine {
 
   // Audio/VFX callbacks
   public onHitSound?: (intensity: number) => void;
+  public onCollision?: (impactSpeed: number, isKnockout: boolean) => void;
   public onFlickSound?: (power: number) => void;
   public onSlideSound?: (intensity: number) => void;
   public onFallSound?: () => void;
   public onAimTick?: (bucket: number) => void;
+  public onTurnSwitch?: (player: 1 | 2) => void;
   public onRoundEnd?: (winner: 0 | 1 | 2, reason: string) => void;
   private slideSoundTimerMs = 0;
 
@@ -455,6 +457,9 @@ export class PenFightEngine {
   public triggerTurnToast(text: string): void {
     this.turnToastText = text;
     this.turnToastTimerMs = 950;
+    if (this.onTurnSwitch) {
+      this.onTurnSwitch(this.activePlayer);
+    }
   }
 
   public getContactWorldPoint(pen: PenBody, grabOffsetRatio: number): { x: number; y: number } {
@@ -1098,7 +1103,12 @@ export class PenFightEngine {
     if (impactSpeed > 25) {
       const intensity = Math.min(1.0, impactSpeed / 440);
       this.screenShake = Math.max(this.screenShake, intensity * 6.5);
-      if (this.onHitSound) this.onHitSound(intensity);
+      const isKnockout = impactSpeed > 440;
+      if (this.onCollision) {
+        this.onCollision(impactSpeed, isKnockout);
+      } else if (this.onHitSound) {
+        this.onHitSound(intensity);
+      }
 
       if (
         this.impactRings.length === 0 ||

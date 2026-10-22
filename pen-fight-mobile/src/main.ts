@@ -6,8 +6,14 @@ import './style.css';
 import { Application } from 'pixi.js';
 import { GameManager } from './core/GameManager';
 import { themeManager } from './ui/ThemeManager';
+import { soundSystem } from './audio/penFightProSoundEngine';
 
 async function boot(): Promise<void> {
+  // Unlock Web Audio API on first user interaction
+  window.addEventListener('pointerdown', () => {
+    soundSystem.init();
+  }, { once: true });
+
   // Load visual theme preferences (light/dark, desk, pen look)
   await themeManager.loadPreferences();
 

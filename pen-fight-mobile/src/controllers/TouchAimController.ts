@@ -1,4 +1,5 @@
 import { PenFightEngine, MAX_PULL_PX, CANCEL_PULL_PX } from '../physics/PenFightEngine';
+import { soundSystem } from '../audio/penFightProSoundEngine';
 
 export class TouchAimController {
   private pointerStartX = 0;
@@ -25,6 +26,7 @@ export class TouchAimController {
 
   private bindEvents(): void {
     this.canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+      soundSystem.init();
       if (this.engine.phase !== 'AIMING' || this.engine.pens.length < 2) return;
       if (this.getMode() === 'ai' && this.engine.activePlayer === 2) return;
 
@@ -79,6 +81,7 @@ export class TouchAimController {
       this.engine.aim.pullX = rawPullX * scale;
       this.engine.aim.pullY = rawPullY * scale;
       this.engine.aim.powerRatio = clampedDist / MAX_PULL_PX;
+      soundSystem.playAimStretchTick(clampedDist);
     });
 
     const releaseHandler = (e: PointerEvent) => {

@@ -10,7 +10,7 @@ import { ArenaRenderer } from '../rendering/ArenaRenderer';
 import { TouchAimController } from '../controllers/TouchAimController';
 import { PENS_ROSTER, PenSpec } from '../config/pensConfig';
 import { ProgressionManager } from './ProgressionManager';
-import { soundManager } from '../audio/SoundAndHaptics';
+import { soundSystem, soundManager } from '../audio/penFightProSoundEngine';
 import { themeManager } from '../ui/ThemeManager';
 import { HUD } from '../ui/HUD';
 import { MainMenu } from '../ui/MainMenu';
@@ -361,26 +361,36 @@ export class GameManager extends EventEmitter {
   }
 
   private setupEngineAudio(): void {
+    // 1. Exact Extracted Pen-on-Pen Collision
+    this.engine.onCollision = (impactSpeed: number, isKnockout: boolean) => {
+      soundSystem.playPenCollision(impactSpeed, isKnockout);
+      soundSystem.haptic(isKnockout ? 'heavy' : impactSpeed > 280 ? 'medium' : 'light');
+    };
+
     this.engine.onHitSound = (intensity: number) => {
-      const sfx = intensity > 0.6 ? 'hit_heavy' : 'hit_light';
-      soundManager.play(sfx, intensity);
-      soundManager.haptic(intensity > 0.6 ? 'heavy' : 'medium');
+      const impactSpeed = intensity * 440;
+      soundSystem.playPenCollision(impactSpeed, intensity > 0.85);
+      soundSystem.haptic(intensity > 0.6 ? 'heavy' : 'medium');
     };
 
+    // 2. Flick Launch Whoosh
     this.engine.onFlickSound = (power: number) => {
-      soundManager.play('flick', power);
-      soundManager.haptic('light');
+      soundSystem.playFlickLaunch(power);
+      soundSystem.haptic('light');
     };
 
-    this.engine.onSlideSound = (intensity: number) => {
-      soundManager.play('slide', intensity);
-    };
-
+    // 3. Falling Off Desk Edge
     this.engine.onFallSound = () => {
-      soundManager.play('fall');
-      soundManager.haptic('heavy');
+      soundSystem.playPenEdgeFall();
+      soundSystem.haptic('heavy');
     };
 
+    // 4. Turn Banner Switch ("YOUR TURN" / "COMPUTER'S TURN")
+    this.engine.onTurnSwitch = () => {
+      soundSystem.playTurnBanner();
+    };
+
+    // 5. Round End
     this.engine.onRoundEnd = (winner: 0 | 1 | 2, reason: string) => {
       this.handleEngineRoundEnd(winner, reason);
     };
@@ -473,6 +483,17 @@ export class GameManager extends EventEmitter {
     // 1. Step the 60-120fps physics & AI engine
     this.engine.step(dt, mode, diff);
 
+    // Continuous Velocity-Modulated Wooden Table Sliding Sound
+    if (this.engine.phase === 'SIMULATING') {
+      for (const pen of this.engine.pens) {
+        const speed = Math.hypot(pen.vx, pen.vy);
+        const isOnTable = !pen.falling && !pen.fallenOut;
+        soundSystem.updatePenTableSlide(pen.playerIndex, speed, isOnTable, pen.omega);
+      }
+    } else {
+      soundSystem.stopAllTableSlides();
+    }
+
     // 2. Render Arena using ArenaRenderer onto 2D canvas
     const dpr = window.devicePixelRatio || 1;
     const w = window.innerWidth;
@@ -512,11 +533,13 @@ export class GameManager extends EventEmitter {
     }
 
     const matchEnded = this.checkMatchWin();
+    soundSystem.stopAllTableSlides();
 
     setTimeout(() => {
       this.bannerContainer.visible = false;
       const p1Spec = PENS_ROSTER[this.selectedPenIndices[0]];
       const p2Spec = PENS_ROSTER[this.selectedPenIndices[1]];
+      soundSystem.playMatchEndPopup(winner === 1);
       this.matchResultModal.show({
         winner: winner === 1 ? 1 : 2,
         scores: this.state.scores,
@@ -590,6 +613,7 @@ export class GameManager extends EventEmitter {
     this.bannerContainer.x = this.app.screen.width / 2;
     this.bannerContainer.y = this.app.screen.height / 2;
     this.bannerContainer.visible = true;
+    soundSystem.playTurnBanner();
   }
 
   private togglePauseMenu(): void {
