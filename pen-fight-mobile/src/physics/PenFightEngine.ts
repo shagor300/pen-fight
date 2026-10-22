@@ -111,6 +111,14 @@ export interface PenBody {
   fallEdgeNormalY: number;
   fallScale: number;        // Legacy compat for renderers using scale
   fallAlpha: number;        // Legacy compat for renderers using alpha
+
+  // Edge Overhang Wobble State ("পড়ে যাবে পড়ে যাবে" tremor)
+  overhangRatio: number;    // 0..1 how much pen hangs off desk
+  wobbleOffsetX: number;    // Render-time tremor offset X
+  wobbleOffsetY: number;    // Render-time tremor offset Y
+  wobbleAngle: number;      // Render-time angular wobble
+  wobbleScale: number;      // Slight scale-down for 3D tipping feel
+  lastVibrateTime: number;  // Throttle haptic vibrations
 }
 
 export interface AimDragState {
@@ -401,6 +409,12 @@ export class PenFightEngine {
       fallEdgeNormalY: 0,
       fallScale: 1,
       fallAlpha: 1,
+      overhangRatio: 0,
+      wobbleOffsetX: 0,
+      wobbleOffsetY: 0,
+      wobbleAngle: 0,
+      wobbleScale: 1.0,
+      lastVibrateTime: 0,
     };
   }
 
@@ -541,23 +555,41 @@ export class PenFightEngine {
     const aiPen = this.pens[1];
     const targetPen = this.pens[0];
 
+    // ── Aggressive AI Difficulty Profiles (Module 2) ──
+    const profiles = {
+      easy:   { angleJitter: 0.14, powerMin: 0.68, powerMax: 0.84, spinProb: 0.25, tipAimProb: 0.20, reactionMs: 650 },
+      normal: { angleJitter: 0.055, powerMin: 0.80, powerMax: 0.94, spinProb: 0.65, tipAimProb: 0.60, reactionMs: 520 },
+      hard:   { angleJitter: 0.012, powerMin: 0.90, powerMax: 1.00, spinProb: 0.92, tipAimProb: 0.88, reactionMs: 420 },
+    };
+    const cfg = profiles[difficulty] || profiles.normal;
+
     const targetEnds = this.getSegmentEndpoints(targetPen);
     let aimX = targetPen.x;
     let aimY = targetPen.y;
 
-    if (difficulty === 'hard' && Math.random() < 0.72) {
-      // Aim at one of the target pen's tips for maximum rotational knockout
-      if (Math.random() < 0.5) {
-        aimX = (targetPen.x + targetEnds.ax) * 0.5;
-        aimY = (targetPen.y + targetEnds.ay) * 0.5;
+    // Aim at target tip nearest desk edge for knockout (based on difficulty)
+    if (Math.random() < cfg.tipAimProb) {
+      const b = this.activeBounds;
+      const distA = Math.min(
+        targetEnds.ax - b.x, b.x + b.w - targetEnds.ax,
+        targetEnds.ay - b.y, b.y + b.h - targetEnds.ay
+      );
+      const distB = Math.min(
+        targetEnds.bx - b.x, b.x + b.w - targetEnds.bx,
+        targetEnds.by - b.y, b.y + b.h - targetEnds.by
+      );
+      if (distA < distB) {
+        aimX = targetEnds.ax;
+        aimY = targetEnds.ay;
       } else {
-        aimX = (targetPen.x + targetEnds.bx) * 0.5;
-        aimY = (targetPen.y + targetEnds.by) * 0.5;
+        aimX = targetEnds.bx;
+        aimY = targetEnds.by;
       }
     }
 
+    // Spin shot: grab near tip for torque
     let grabOffsetRatio = (Math.random() - 0.5) * 0.32;
-    if (difficulty !== 'easy' && Math.random() < 0.52) {
+    if (Math.random() < cfg.spinProb) {
       grabOffsetRatio = (Math.random() < 0.5 ? 1 : -1) * (0.42 + Math.random() * 0.35);
     }
 
@@ -567,15 +599,17 @@ export class PenFightEngine {
     const distPx = Math.hypot(toTargetX, toTargetY) || 1;
 
     let launchAngle = Math.atan2(toTargetY, toTargetX);
-    const errorRad =
-      difficulty === 'easy' ? 0.22 : difficulty === 'normal' ? 0.09 : 0.03;
-    launchAngle += (Math.random() - 0.5) * errorRad;
+    launchAngle += (Math.random() - 0.5) * cfg.angleJitter;
 
-    const distRatio = Math.min(1.0, Math.max(0.32, distPx / 340));
-    const powerRatio =
-      difficulty === 'easy'
-        ? 0.42 + Math.random() * 0.26
-        : Math.min(0.82, Math.max(0.44, distRatio * (0.66 + Math.random() * 0.16)));
+    // High-power shots based on difficulty profile (never weak!)
+    const distFactor = Math.min(1.0, Math.max(0.35, distPx / 340));
+    let powerRatio = cfg.powerMin + distFactor * (cfg.powerMax - cfg.powerMin);
+
+    // Finishing blow: if player pen is overhanging, go full power!
+    if (targetPen.overhangRatio && targetPen.overhangRatio > 0.15) {
+      powerRatio = Math.min(1.0, powerRatio + 0.12);
+    }
+    powerRatio = Math.min(1.0, powerRatio);
 
     const pullMag = powerRatio * MAX_PULL_PX;
     this.aiPlan = {
@@ -858,18 +892,74 @@ export class PenFightEngine {
     if (com.y < b.y) outDirY = -1;
     else if (com.y > b.y + b.h) outDirY = 1;
 
+    // COM is outside bounds → pen falls
     if (outDirX !== 0 || outDirY !== 0) {
       pen.falling = true;
+      pen.overhangRatio = 0;
+      pen.wobbleOffsetX = 0;
+      pen.wobbleOffsetY = 0;
+      pen.wobbleAngle = 0;
+      pen.wobbleScale = 1.0;
       pen.fallEdgeNormalX = outDirX;
       pen.fallEdgeNormalY = outDirY;
-      // Slight outward push as gravity takes over the overhang
       pen.vx += outDirX * 65;
       pen.vy += outDirY * 65;
-      pen.vz = -40; // Start falling
+      pen.vz = -40;
       pen.zHeight = 0;
       pen.tiltAngle = 0;
-
       if (this.onFallSound) this.onFallSound();
+      return;
+    }
+
+    // ── EDGE OVERHANG WOBBLE ("পড়ে যাবে পড়ে যাবে" tremor) ──
+    const ep = this.getSegmentEndpoints(pen);
+    const outDist = (px: number, py: number) => {
+      const outL = Math.max(0, b.x - px);
+      const outR = Math.max(0, px - (b.x + b.w));
+      const outT = Math.max(0, b.y - py);
+      const outB = Math.max(0, py - (b.y + b.h));
+      return Math.hypot(Math.max(outL, outR), Math.max(outT, outB));
+    };
+
+    const outA = outDist(ep.ax, ep.ay);
+    const outB = outDist(ep.bx, ep.by);
+    const maxOutPx = Math.max(outA, outB);
+    const overhangRatio = Math.min(1.0, maxOutPx / (pen.lengthPx * 0.55));
+    pen.overhangRatio = overhangRatio;
+
+    if (overhangRatio > 0.20) {
+      const now = performance.now();
+      // High-frequency teetering vibration
+      const freq = 28 + overhangRatio * 36;
+      const phase = now * 0.001 * freq;
+      const shakeAmpPx = 1.2 + overhangRatio * 3.2;
+      pen.wobbleOffsetX = Math.sin(phase * 1.7) * shakeAmpPx;
+      pen.wobbleOffsetY = Math.cos(phase * 2.1) * shakeAmpPx;
+      pen.wobbleAngle = Math.sin(phase) * (0.025 + overhangRatio * 0.055);
+      pen.wobbleScale = 1.0 - overhangRatio * 0.06;
+
+      // Gravity pull when >42% overhanging and nearly stopped
+      if (overhangRatio > 0.42 && Math.hypot(pen.vx, pen.vy) < 25) {
+        const pullDirX = outA > outB ? (ep.ax - pen.x) : (ep.bx - pen.x);
+        const pullDirY = outA > outB ? (ep.ay - pen.y) : (ep.by - pen.y);
+        const len = Math.hypot(pullDirX, pullDirY) || 1;
+        const subDt = FIXED_DT / SUB_STEPS;
+        pen.vx += (pullDirX / len) * (overhangRatio * 18) * subDt;
+        pen.vy += (pullDirY / len) * (overhangRatio * 18) * subDt;
+      }
+
+      // Android haptic vibration (throttled every 180ms)
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        if (!pen.lastVibrateTime || now - pen.lastVibrateTime > 180) {
+          navigator.vibrate(Math.round(12 + overhangRatio * 20));
+          pen.lastVibrateTime = now;
+        }
+      }
+    } else {
+      pen.wobbleOffsetX = 0;
+      pen.wobbleOffsetY = 0;
+      pen.wobbleAngle = 0;
+      pen.wobbleScale = 1.0;
     }
   }
 

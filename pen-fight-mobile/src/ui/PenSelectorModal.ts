@@ -285,10 +285,16 @@ export class PenSelectorModal extends EventEmitter {
     const stageH = 140;
     const stageY = topY + 38;
 
+    // Dark Velvet Studio Spotlight Stage
     this.stageBox.clear()
       .roundRect(-stageW / 2, stageY, stageW, stageH, 16)
-      .fill({ color: 0xEDE3D0 })
-      .stroke({ color: 0xD7C6AA, width: 2 });
+      .fill({ color: 0x0F172A })
+      .stroke({ color: 0x334155, width: 2 });
+
+    // Add inner spotlight glow (subtle radial effect via layered fills)
+    this.stageBox
+      .roundRect(-stageW / 2 + 4, stageY + 4, stageW - 8, stageH - 8, 14)
+      .fill({ color: 0x1E293B, alpha: 0.7 });
 
     this.penPreviewContainer.x = 0;
     this.penPreviewContainer.y = stageY + stageH / 2;
@@ -480,6 +486,14 @@ export class PenSelectorModal extends EventEmitter {
     const availableW = totalW - starStartX;
     const starW = (availableW - 4 * 6) / 5;
 
+    const SKILL_COLORS: { fill: number; stroke: number; glow: string }[] = [
+      { fill: 0xF59E0B, stroke: 0xD97706, glow: 'rgba(245,158,11,0.45)' },  // Weight: Amber
+      { fill: 0x06B6D4, stroke: 0x0891B2, glow: 'rgba(6,182,212,0.45)' },   // Speed: Cyan
+      { fill: 0x8B5CF6, stroke: 0x7C3AED, glow: 'rgba(139,92,246,0.45)' },  // Spin: Purple
+      { fill: 0x10B981, stroke: 0x059669, glow: 'rgba(16,185,129,0.45)' },   // Grip: Emerald
+      { fill: 0xF43F5E, stroke: 0xE11D48, glow: 'rgba(244,63,94,0.45)' },   // Reach: Crimson
+    ];
+
     stats.forEach(([label, value], idx) => {
       const y = idx * rowH;
 
@@ -488,15 +502,30 @@ export class PenSelectorModal extends EventEmitter {
       nameText.y = y;
       this.statBarsContainer.addChild(nameText);
 
+      const color = SKILL_COLORS[idx];
       const starsG = new Graphics();
       for (let s = 1; s <= 5; s++) {
         const sx = starStartX + (s - 1) * (starW + 6);
         const isFilled = s <= value;
         starsG.roundRect(sx, y + 1, starW, 11, 3.5)
-          .fill({ color: isFilled ? 0x2563EB : 0xD8CFC2 })
-          .stroke({ color: isFilled ? 0x1D4ED8 : 0xBEB4A4, width: 1.2 });
+          .fill({ color: isFilled ? color.fill : 0xD8CFC2 })
+          .stroke({ color: isFilled ? color.stroke : 0xBEB4A4, width: 1.2 });
       }
       this.statBarsContainer.addChild(starsG);
+
+      // Numeric badge (X/5)
+      const numBadge = new Text({
+        text: `${value}/5`,
+        style: new TextStyle({
+          fontFamily: 'Nunito, sans-serif',
+          fontSize: 10.5,
+          fill: SKILL_COLORS[idx].fill,
+          fontWeight: '800',
+        })
+      });
+      numBadge.x = starStartX + 5 * (starW + 6) + 4;
+      numBadge.y = y + 1;
+      this.statBarsContainer.addChild(numBadge);
     });
   }
 
@@ -551,6 +580,11 @@ export class PenSelectorModal extends EventEmitter {
       diffContainer.y = -36;
 
       const diffs: AIDifficulty[] = ['easy', 'normal', 'hard'];
+      const diffColors: Record<AIDifficulty, { active: number; shadow: number }> = {
+        easy:   { active: 0x38BDF8, shadow: 0x0284C7 },
+        normal: { active: 0xFBBF24, shadow: 0xD97706 },
+        hard:   { active: 0xF43F5E, shadow: 0xBE123C },
+      };
       const itemW = diffW / 3;
 
       diffs.forEach((d, idx) => {
@@ -558,10 +592,19 @@ export class PenSelectorModal extends EventEmitter {
         const btn = new Container();
         btn.x = -diffW / 2 + idx * itemW + itemW / 2;
 
+        const colors = diffColors[d];
+        // 3D shadow for active state
+        if (isSel) {
+          const shadow = new Graphics()
+            .roundRect(-itemW / 2 + 2, -diffH / 2 + 3, itemW - 4, diffH, 14)
+            .fill({ color: colors.shadow });
+          btn.addChild(shadow);
+        }
+
         const surface = new Graphics()
           .roundRect(-itemW / 2 + 2, -diffH / 2, itemW - 4, diffH, 14)
-          .fill({ color: isSel ? COLORS.mintGreen : Flora(d) })
-          .stroke({ color: COLORS.navyBorder, width: isSel ? 2 : 1.2 });
+          .fill({ color: isSel ? colors.active : 0xEFE8D8 })
+          .stroke({ color: COLORS.navyBorder, width: isSel ? 2.4 : 1.2 });
         btn.addChild(surface);
 
         const txt = new Text({

@@ -43,14 +43,18 @@ export class ArenaRenderer {
 
     for (const pen of engine.pens) {
       if (pen.fallenOut) continue;
+      // Apply wobble offsets for edge-overhang tremor
+      const drawX = pen.renderX + (pen.wobbleOffsetX || 0);
+      const drawY = pen.renderY + (pen.wobbleOffsetY || 0);
+      const drawAngle = pen.renderAngle + (pen.wobbleAngle || 0);
       renderPenToCanvas(
         ctx,
         pen.spec,
-        pen.renderX,
-        pen.renderY,
-        pen.renderAngle,
+        drawX,
+        drawY,
+        drawAngle,
         penLook,
-        pen.fallScale,
+        pen.fallScale * (pen.wobbleScale || 1.0),
         pen.fallAlpha,
         pen.level
       );
