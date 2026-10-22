@@ -389,6 +389,10 @@ export class GameManager extends EventEmitter {
   private applySettings(cfg: GameSettings): void {
     this.state.matchFormat = cfg.matchFormat;
     this.state.winsNeeded = cfg.matchFormat === 'first_to_5' ? 5 : 3;
+    // Wire physics mode into the engine
+    if (cfg.physicsMode) {
+      this.engine.setPhysicsMode(cfg.physicsMode);
+    }
   }
 
   public showMainMenu(): void {

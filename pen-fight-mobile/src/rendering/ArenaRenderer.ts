@@ -46,9 +46,9 @@ export class ArenaRenderer {
       renderPenToCanvas(
         ctx,
         pen.spec,
-        pen.x,
-        pen.y,
-        pen.angle,
+        pen.renderX,
+        pen.renderY,
+        pen.renderAngle,
         penLook,
         pen.fallScale,
         pen.fallAlpha,
@@ -406,8 +406,8 @@ export class ArenaRenderer {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = isCurrentTurn ? pen.labelColor : 'rgba(92, 75, 60, 0.78)';
 
-    const labelY = pen.y + 36;
-    ctx.fillText(pen.label, pen.x, labelY);
+    const labelY = pen.renderY + 36;
+    ctx.fillText(pen.label, pen.renderX, labelY);
     ctx.restore();
   }
 

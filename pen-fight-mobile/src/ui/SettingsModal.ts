@@ -18,10 +18,13 @@ import EventEmitter from 'eventemitter3';
 export type DeskStyle = 'clean' | 'old_school';
 export type PenLook = 'classic' | 'real';
 
+export type PhysicsModeKey = 'classic' | 'real';
+
 export interface GameSettings {
   uiTheme: UiThemeMode;
   deskStyle: DeskStyle;
   penLook: PenLook;
+  physicsMode: PhysicsModeKey;
   aimGuide: boolean;
   reduceMotion: boolean;
   vibration: boolean;
@@ -44,6 +47,7 @@ export class SettingsModal extends EventEmitter {
     uiTheme: 'light',
     deskStyle: 'old_school',
     penLook: 'real',
+    physicsMode: 'classic',
     aimGuide: true,
     reduceMotion: false,
     vibration: true,
@@ -314,6 +318,23 @@ export class SettingsModal extends EventEmitter {
     playHdr.y = currY;
     cc.addChild(playHdr);
     currY += 16;
+
+    const physicsRow = this.createSegmentedControl(
+      totalW,
+      [
+        { key: 'classic', label: '🎮 Classic' },
+        { key: 'real', label: '⚙️ Real' },
+      ],
+      this.settings.physicsMode,
+      (val) => {
+        this.settings.physicsMode = val as PhysicsModeKey;
+        this.emit('settings_changed', this.settings);
+        this.renderContent();
+      }
+    );
+    physicsRow.y = currY;
+    cc.addChild(physicsRow);
+    currY += 38;
 
     const aimRow = this.createCompactToggleRow(
       totalW,
