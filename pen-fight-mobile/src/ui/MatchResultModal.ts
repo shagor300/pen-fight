@@ -6,8 +6,10 @@
  */
 import { Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import { COLORS } from '../config/gameConstants';
+import { DESIGN_TOKENS } from '../config/designTokens';
 import { PenSpec } from '../config/pensConfig';
 import { renderPenToCanvas } from '../rendering/RealPenRenderer';
+import { soundManager } from '../audio/SoundAndHaptics';
 import EventEmitter from 'eventemitter3';
 
 export interface MatchResultData {
@@ -110,51 +112,52 @@ export class MatchResultModal extends EventEmitter {
 
     this.cardContent.removeChildren();
 
+    const isCompact = this.screenHeight < 720;
     const w = Math.min(this.screenWidth - 32, 380);
-    const h = 530;
-    const r = 24;
+    const h = Math.min(this.screenHeight - 24, isCompact ? 490 : 530);
+    const r = DESIGN_TOKENS.radii.lg;
 
     // ── 1. Main Card Surface with 3D Shadow ──────────────────────────
     this.cardSurface.clear();
     // 3D Shadow
     this.cardSurface
-      .roundRect(-w / 2, -h / 2 + 7, w, h, r)
-      .fill({ color: COLORS.navyShadow });
+      .roundRect(-w / 2, -h / 2 + DESIGN_TOKENS.shadows.cardOffset, w, h, r)
+      .fill({ color: DESIGN_TOKENS.colors.navyOutline });
     // Surface
     this.cardSurface
       .roundRect(-w / 2, -h / 2, w, h, r)
-      .fill({ color: COLORS.cardCream })
-      .stroke({ color: COLORS.navyBorder, width: 3.5 });
+      .fill({ color: DESIGN_TOKENS.colors.creamSurface })
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.thick });
 
     const p1Won = this.data.winner === 1;
     const isAi = this.data.mode === 'VS_AI';
 
     // ── 2. Dark Header Banner (Zero Overlap — icon inside banner) ────
-    const topY = -h / 2 + 20;
+    const topY = -h / 2 + (isCompact ? 14 : 20);
     const bannerW = w - 32;
-    const bannerH = 82;
+    const bannerH = isCompact ? 72 : 82;
 
     const headerBanner = new Graphics()
-      .roundRect(-bannerW / 2, topY, bannerW, bannerH, 20)
-      .fill({ color: 0x1E293B })
-      .stroke({ color: 0x334155, width: 2 });
+      .roundRect(-bannerW / 2, topY, bannerW, bannerH, DESIGN_TOKENS.radii.md)
+      .fill({ color: DESIGN_TOKENS.colors.deepNavy })
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: 2 });
     this.cardContent.addChild(headerBanner);
 
     // Trophy/Avatar badge inside banner (left side)
-    const badgeSize = 52;
+    const badgeSize = isCompact ? 46 : 52;
     const badgeX = -bannerW / 2 + 14 + badgeSize / 2;
     const badgeY = topY + bannerH / 2;
 
     const badgeBg = new Graphics()
-      .roundRect(-badgeSize / 2, -badgeSize / 2, badgeSize, badgeSize, 16)
-      .fill({ color: p1Won ? 0xFACC15 : 0x38BDF8 });
+      .roundRect(-badgeSize / 2, -badgeSize / 2, badgeSize, badgeSize, DESIGN_TOKENS.radii.sm)
+      .fill({ color: p1Won ? DESIGN_TOKENS.colors.premiumGold : 0x38BDF8 });
     badgeBg.x = badgeX;
     badgeBg.y = badgeY;
     this.cardContent.addChild(badgeBg);
 
     const avIcon = new Text({
       text: p1Won ? '🏆' : '🤖',
-      style: new TextStyle({ fontSize: 28 })
+      style: new TextStyle({ fontSize: isCompact ? 24 : 28 })
     });
     avIcon.anchor.set(0.5, 0.5);
     avIcon.x = badgeX;
@@ -169,7 +172,7 @@ export class MatchResultModal extends EventEmitter {
         ? `SERIES COMPLETE · FIRST TO ${this.data.winsNeeded}`
         : `ROUND ${this.data.scores[0] + this.data.scores[1]} · FIRST TO ${this.data.winsNeeded}`,
       style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
+        fontFamily: DESIGN_TOKENS.typography.fontBody,
         fontSize: 10,
         fill: 0x94A3B8,
         fontWeight: '800',
@@ -177,7 +180,7 @@ export class MatchResultModal extends EventEmitter {
       })
     });
     seriesSubtitle.x = headerTextX;
-    seriesSubtitle.y = topY + 14;
+    seriesSubtitle.y = topY + (isCompact ? 10 : 14);
     this.cardContent.addChild(seriesSubtitle);
 
     const winnerTitle = isComplete
@@ -191,54 +194,54 @@ export class MatchResultModal extends EventEmitter {
     const titleText = new Text({
       text: winnerTitle,
       style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
-        fontSize: 18,
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
+        fontSize: isCompact ? 16 : 18,
         fill: 0xF8FAFC,
         fontWeight: 'bold',
         wordWrap: true,
-        wordWrapWidth: bannerW - badgeSize - 52,
+        wordWrapWidth: bannerW - badgeSize - 44,
       })
     });
     titleText.x = headerTextX;
-    titleText.y = topY + 32;
+    titleText.y = topY + (isCompact ? 28 : 32);
     this.cardContent.addChild(titleText);
 
     // ── 3. Inset "SERIES SCORE" Card ─────────────────────────────────
-    const scoreBoxY = topY + bannerH + 14;
+    const scoreBoxY = topY + bannerH + (isCompact ? 10 : 14);
     const scoreBoxW = w - 44;
-    const scoreBoxH = 96;
+    const scoreBoxH = isCompact ? 86 : 96;
 
     const scoreBox = new Graphics()
-      .roundRect(-scoreBoxW / 2, scoreBoxY, scoreBoxW, scoreBoxH, 16)
-      .fill({ color: 0xF7EFE0 })
-      .stroke({ color: COLORS.navyBorder, width: 2.5 });
+      .roundRect(-scoreBoxW / 2, scoreBoxY, scoreBoxW, scoreBoxH, DESIGN_TOKENS.radii.md)
+      .fill({ color: DESIGN_TOKENS.colors.creamSecondary })
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.regular });
     this.cardContent.addChild(scoreBox);
 
     const scoreTitle = new Text({
       text: 'SERIES SCORE',
       style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
+        fontFamily: DESIGN_TOKENS.typography.fontBody,
         fontSize: 10,
-        fill: 0x8C7B65,
+        fill: DESIGN_TOKENS.colors.secondaryText,
         fontWeight: '800',
         letterSpacing: 1.5,
       })
     });
     scoreTitle.anchor.set(0.5, 0);
     scoreTitle.x = 0;
-    scoreTitle.y = scoreBoxY + 10;
+    scoreTitle.y = scoreBoxY + 8;
     this.cardContent.addChild(scoreTitle);
 
     // Score numbers and labels
     const scoreRow = new Container();
-    scoreRow.y = scoreBoxY + 52;
+    scoreRow.y = scoreBoxY + (isCompact ? 46 : 52);
 
     const p1Label = new Text({
       text: '• You',
       style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
-        fontSize: 15,
-        fill: COLORS.peachOrange,
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
+        fontSize: 14,
+        fill: DESIGN_TOKENS.colors.orangeAction,
         fontWeight: 'bold',
       })
     });
@@ -249,9 +252,9 @@ export class MatchResultModal extends EventEmitter {
     const p1Score = new Text({
       text: `${this.data.scores[0]}`,
       style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
-        fontSize: 34,
-        fill: COLORS.textDark,
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
+        fontSize: isCompact ? 30 : 34,
+        fill: DESIGN_TOKENS.colors.navyOutline,
         fontWeight: 'bold',
       })
     });
@@ -262,9 +265,9 @@ export class MatchResultModal extends EventEmitter {
     const dash = new Text({
       text: '–',
       style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
-        fontSize: 26,
-        fill: COLORS.textMuted,
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
+        fontSize: 24,
+        fill: DESIGN_TOKENS.colors.secondaryText,
         fontWeight: 'bold',
       })
     });
@@ -275,9 +278,9 @@ export class MatchResultModal extends EventEmitter {
     const p2Score = new Text({
       text: `${this.data.scores[1]}`,
       style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
-        fontSize: 34,
-        fill: COLORS.textDark,
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
+        fontSize: isCompact ? 30 : 34,
+        fill: DESIGN_TOKENS.colors.navyOutline,
         fontWeight: 'bold',
       })
     });
@@ -288,9 +291,9 @@ export class MatchResultModal extends EventEmitter {
     const p2Label = new Text({
       text: isAi ? '• Computer' : '• Player 2',
       style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
-        fontSize: 15,
-        fill: COLORS.skyBlue,
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
+        fontSize: 14,
+        fill: 0x0EA5E9,
         fontWeight: 'bold',
       })
     });
@@ -301,61 +304,61 @@ export class MatchResultModal extends EventEmitter {
     this.cardContent.addChild(scoreRow);
 
     // ── 4. Win Streaks & XP (Dark Card — No Pen Overlap) ─────────────
-    const statsY = scoreBoxY + scoreBoxH + 12;
+    const statsY = scoreBoxY + scoreBoxH + (isCompact ? 9 : 12);
     const xpCardW = w - 44;
-    const xpCardH = 68;
+    const xpCardH = isCompact ? 60 : 68;
 
     const xpCardBg = new Graphics()
-      .roundRect(-xpCardW / 2, statsY, xpCardW, xpCardH, 16)
-      .fill({ color: 0x0F172A });
+      .roundRect(-xpCardW / 2, statsY, xpCardW, xpCardH, DESIGN_TOKENS.radii.md)
+      .fill({ color: DESIGN_TOKENS.colors.deepNavy });
     this.cardContent.addChild(xpCardBg);
 
     const streakText = new Text({
       text: `🔥 Win streaks · You ${p1Won ? this.data.streak : 0} · Computer ${!p1Won ? this.data.streak : 0}`,
       style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
-        fontSize: 11,
+        fontFamily: DESIGN_TOKENS.typography.fontBody,
+        fontSize: isCompact ? 10 : 11,
         fill: 0x94A3B8,
         fontWeight: '700',
       })
     });
     streakText.anchor.set(0.5, 0);
     streakText.x = 0;
-    streakText.y = statsY + 10;
+    streakText.y = statsY + (isCompact ? 7 : 10);
     this.cardContent.addChild(streakText);
 
     const xpText = new Text({
       text: `${this.data.p1Pen.name}: +${this.data.xpEarned} XP`,
       style: new TextStyle({
-        fontFamily: 'Fredoka, Nunito, sans-serif',
-        fontSize: 14,
-        fill: 0x34D399,
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
+        fontSize: isCompact ? 13 : 14,
+        fill: DESIGN_TOKENS.colors.victoryGreen,
         fontWeight: 'bold',
       })
     });
     xpText.anchor.set(0.5, 0);
     xpText.x = 0;
-    xpText.y = statsY + 28;
+    xpText.y = statsY + (isCompact ? 24 : 28);
     this.cardContent.addChild(xpText);
 
     const keepText = new Text({
       text: 'New series keeps the same pens',
       style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
-        fontSize: 10,
+        fontFamily: DESIGN_TOKENS.typography.fontBody,
+        fontSize: 9.5,
         fill: 0x64748B,
         fontWeight: '700',
       })
     });
     keepText.anchor.set(0.5, 0);
     keepText.x = 0;
-    keepText.y = statsY + 48;
+    keepText.y = statsY + (isCompact ? 42 : 48);
     this.cardContent.addChild(keepText);
 
     // ── 5. Action Buttons ────────────────────────────────────────────
     const btnW = w - 44;
-    const btnH = 56;
-    const buttonsY = statsY + xpCardH + 14;
+    const btnH = isCompact ? 48 : 56;
+    const buttonsY = statsY + xpCardH + (isCompact ? 10 : 14);
 
     // Button 1: Next Round or Play Again (Rematch)
     const primaryLabel = isComplete ? 'Play again' : 'Next round';
@@ -365,11 +368,12 @@ export class MatchResultModal extends EventEmitter {
     const mainActionBtn = this.createButton({
       w: btnW,
       h: btnH,
-      color: COLORS.butterYellow,
+      color: DESIGN_TOKENS.colors.premiumGold,
       icon: primaryIcon,
       label: primaryLabel,
       primary: true,
       onClick: () => {
+        soundManager.play('flick');
         this.hide();
         this.emit(primaryEvent);
       }
@@ -380,17 +384,18 @@ export class MatchResultModal extends EventEmitter {
 
     // Bottom Row: [✎ Change pens] & [☰ Menu]
     const smallBtnW = (btnW - 12) / 2;
-    const smallBtnH = 48;
-    const smallBtnY = buttonsY + btnH + 12;
+    const smallBtnH = isCompact ? 42 : 48;
+    const smallBtnY = buttonsY + btnH + (isCompact ? 8 : 12);
 
     const changePensBtn = this.createButton({
       w: smallBtnW,
       h: smallBtnH,
-      color: COLORS.cardCream,
+      color: DESIGN_TOKENS.colors.creamSurface,
       icon: '✎',
       label: 'Change',
       primary: false,
       onClick: () => {
+        soundManager.play('ui_click');
         this.hide();
         this.emit('change_pens');
       }
@@ -402,11 +407,12 @@ export class MatchResultModal extends EventEmitter {
     const menuBtn = this.createButton({
       w: smallBtnW,
       h: smallBtnH,
-      color: COLORS.cardCream,
+      color: DESIGN_TOKENS.colors.creamSurface,
       icon: '☰',
       label: 'Menu',
       primary: false,
       onClick: () => {
+        soundManager.play('ui_click');
         this.hide();
         this.emit('menu');
       }
@@ -429,16 +435,16 @@ export class MatchResultModal extends EventEmitter {
     btn.eventMode = 'static';
     btn.cursor = 'pointer';
 
-    const r = 16;
+    const r = DESIGN_TOKENS.radii.md;
     const shadow = new Graphics()
-      .roundRect(-opts.w / 2, 4, opts.w, opts.h, r)
-      .fill({ color: COLORS.navyShadow });
+      .roundRect(-opts.w / 2, DESIGN_TOKENS.shadows.buttonOffset, opts.w, opts.h, r)
+      .fill({ color: DESIGN_TOKENS.colors.navyOutline });
     btn.addChild(shadow);
 
     const surface = new Graphics()
       .roundRect(-opts.w / 2, 0, opts.w, opts.h, r)
       .fill({ color: opts.color })
-      .stroke({ color: COLORS.navyBorder, width: opts.primary ? 2.8 : 2.2 });
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: opts.primary ? DESIGN_TOKENS.borders.thick : DESIGN_TOKENS.borders.regular });
     btn.addChild(surface);
 
     const row = new Container();
@@ -454,9 +460,9 @@ export class MatchResultModal extends EventEmitter {
     const label = new Text({
       text: opts.label,
       style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
-        fontSize: opts.primary ? 20 : 15,
-        fill: COLORS.textDark,
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
+        fontSize: opts.primary ? 19 : 15,
+        fill: DESIGN_TOKENS.colors.navyOutline,
         fontWeight: 'bold',
       })
     });
@@ -467,7 +473,7 @@ export class MatchResultModal extends EventEmitter {
 
     surface.addChild(row);
 
-    btn.on('pointerdown', () => { surface.y = 3; });
+    btn.on('pointerdown', () => { surface.y = 2.5; });
     btn.on('pointerup', () => {
       surface.y = 0;
       opts.onClick();
@@ -475,5 +481,10 @@ export class MatchResultModal extends EventEmitter {
     btn.on('pointerupoutside', () => { surface.y = 0; });
 
     return btn;
+  }
+
+  public destroy(): void {
+    this.removeAllListeners();
+    this.container.destroy({ children: true });
   }
 }

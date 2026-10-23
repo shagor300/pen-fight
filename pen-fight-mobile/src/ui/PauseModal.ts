@@ -5,6 +5,7 @@
  */
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { COLORS } from '../config/gameConstants';
+import { DESIGN_TOKENS } from '../config/designTokens';
 import { soundManager } from '../audio/SoundAndHaptics';
 import { themeManager, DESK_WOOD_THEMES } from './ThemeManager';
 import EventEmitter from 'eventemitter3';
@@ -86,58 +87,59 @@ export class PauseModal extends EventEmitter {
     if (!this.data) return;
     this.content.removeChildren();
 
+    const isCompact = this.screenHeight < 720;
     const w = Math.min(this.screenWidth - 28, 380);
-    const h = Math.min(this.screenHeight - 28, 590);
-    const r = 22;
+    const h = Math.min(this.screenHeight - 28, isCompact ? 530 : 590);
+    const r = DESIGN_TOKENS.radii.lg;
 
     this.cardSurface.clear();
     this.cardSurface
-      .roundRect(-w / 2, -h / 2 + 6, w, h, r)
-      .fill({ color: COLORS.navyShadow })
+      .roundRect(-w / 2, -h / 2 + DESIGN_TOKENS.shadows.cardOffset, w, h, r)
+      .fill({ color: DESIGN_TOKENS.colors.navyOutline })
       .roundRect(-w / 2, -h / 2, w, h, r)
-      .fill({ color: COLORS.cardCream })
-      .stroke({ color: COLORS.navyBorder, width: 3.2 });
+      .fill({ color: DESIGN_TOKENS.colors.creamSurface })
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.thick });
 
-    const topY = -h / 2 + 20;
+    const topY = -h / 2 + (isCompact ? 14 : 20);
 
-    const badgeS = 38;
+    const badgeS = isCompact ? 32 : 38;
     const badge = new Graphics()
-      .roundRect(-w / 2 + 20, topY, badgeS, badgeS, 11)
+      .roundRect(-w / 2 + 20, topY, badgeS, badgeS, DESIGN_TOKENS.radii.sm)
       .fill({ color: 0xCDEAC0 })
-      .stroke({ color: COLORS.navyBorder, width: 2.2 });
-    const barW = 3.5;
-    const barH = 13;
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.thin });
+    const barW = isCompact ? 3 : 3.5;
+    const barH = isCompact ? 11 : 13;
     badge
       .roundRect(-w / 2 + 20 + badgeS / 2 - barW - 2, topY + (badgeS - barH) / 2, barW, barH, 1.5)
-      .fill({ color: COLORS.textDark })
+      .fill({ color: DESIGN_TOKENS.colors.navyOutline })
       .roundRect(-w / 2 + 20 + badgeS / 2 + 2, topY + (badgeS - barH) / 2, barW, barH, 1.5)
-      .fill({ color: COLORS.textDark });
+      .fill({ color: DESIGN_TOKENS.colors.navyOutline });
     this.content.addChild(badge);
 
     const title = new Text({
       text: 'Paused',
       style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
-        fontSize: 21,
-        fill: COLORS.textDark,
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
+        fontSize: isCompact ? 19 : 21,
+        fill: DESIGN_TOKENS.colors.navyOutline,
         fontWeight: 'bold'
       })
     });
-    title.x = -w / 2 + 68;
+    title.x = -w / 2 + (isCompact ? 60 : 68);
     title.y = topY - 1;
     this.content.addChild(title);
 
     const sub = new Text({
       text: 'Same pens · your turn can wait',
       style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
-        fontSize: 12,
-        fill: COLORS.textMuted,
+        fontFamily: DESIGN_TOKENS.typography.fontBody,
+        fontSize: isCompact ? 11 : 12,
+        fill: DESIGN_TOKENS.colors.secondaryText,
         fontWeight: '700'
       })
     });
-    sub.x = -w / 2 + 68;
-    sub.y = topY + 23;
+    sub.x = -w / 2 + (isCompact ? 60 : 68);
+    sub.y = topY + (isCompact ? 19 : 23);
     this.content.addChild(sub);
 
     const isAi = this.data.mode === 'VS_AI';
@@ -147,45 +149,46 @@ export class PauseModal extends EventEmitter {
     const matchSummary = new Text({
       text: `Match ${this.data.matchNum} · ${p1Lbl} ${this.data.scores[0]} · ${p2Lbl} ${this.data.scores[1]} · First to ${this.data.winsNeeded}`,
       style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
-        fontSize: 11.5,
-        fill: COLORS.textDark,
+        fontFamily: DESIGN_TOKENS.typography.fontBody,
+        fontSize: isCompact ? 10.5 : 11.5,
+        fill: DESIGN_TOKENS.colors.navyOutline,
         fontWeight: '800'
       })
     });
     matchSummary.anchor.set(0.5, 0);
     matchSummary.x = 0;
-    matchSummary.y = topY + 52;
+    matchSummary.y = topY + (isCompact ? 44 : 52);
     this.content.addChild(matchSummary);
 
     const streakSummary = new Text({
       text: `Win streaks · ${p1Lbl} ${this.data.p1Streak} · ${p2Lbl} ${this.data.p2Streak}`,
       style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
-        fontSize: 11.5,
-        fill: COLORS.textMuted,
+        fontFamily: DESIGN_TOKENS.typography.fontBody,
+        fontSize: isCompact ? 10.5 : 11.5,
+        fill: DESIGN_TOKENS.colors.secondaryText,
         fontWeight: '700'
       })
     });
     streakSummary.anchor.set(0.5, 0);
     streakSummary.x = 0;
-    streakSummary.y = topY + 69;
+    streakSummary.y = topY + (isCompact ? 59 : 69);
     this.content.addChild(streakSummary);
 
     const btnW = w - 40;
-    const btnH = 44;
-    let curY = topY + 96;
+    const btnH = isCompact ? 37 : 44;
+    const btnGap = isCompact ? 5 : 8;
+    let curY = topY + (isCompact ? 80 : 96);
 
     const activeWood = DESK_WOOD_THEMES.find(t => t.id === themeManager.getNormalizedDeskTheme()) || DESK_WOOD_THEMES[0];
 
     const actions: { icon: string; label: string; bg: number; onClick: () => void }[] = [
       { icon: '▷', label: 'Resume', bg: 0xCDEAC0, onClick: () => this.emit('resume') },
-      { icon: '↻', label: 'Restart match', bg: 0xF5EFE2, onClick: () => this.emit('restart') },
-      { icon: '✎', label: 'Change pens', bg: COLORS.cardCream, onClick: () => this.emit('change_pens') },
+      { icon: '↻', label: 'Restart match', bg: DESIGN_TOKENS.colors.creamSecondary, onClick: () => this.emit('restart') },
+      { icon: '✎', label: 'Change pens', bg: DESIGN_TOKENS.colors.creamSurface, onClick: () => this.emit('change_pens') },
       {
         icon: activeWood.icon,
         label: `Desk Wood: ${activeWood.label}`,
-        bg: COLORS.cardCream,
+        bg: DESIGN_TOKENS.colors.creamSurface,
         onClick: async () => {
           const curIdx = DESK_WOOD_THEMES.findIndex(t => t.id === activeWood.id);
           const nextTheme = DESK_WOOD_THEMES[(curIdx + 1) % DESK_WOOD_THEMES.length];
@@ -193,9 +196,9 @@ export class PauseModal extends EventEmitter {
           this.renderModal();
         }
       },
-      { icon: '⚙', label: 'Settings', bg: COLORS.cardCream, onClick: () => this.emit('settings') },
-      { icon: '?', label: 'How to play', bg: COLORS.cardCream, onClick: () => this.emit('help') },
-      { icon: '🏠', label: 'Main menu', bg: COLORS.cardCream, onClick: () => this.emit('main_menu') },
+      { icon: '⚙', label: 'Settings', bg: DESIGN_TOKENS.colors.creamSurface, onClick: () => this.emit('settings') },
+      { icon: '?', label: 'How to play', bg: DESIGN_TOKENS.colors.creamSurface, onClick: () => this.emit('help') },
+      { icon: '🏠', label: 'Main menu', bg: DESIGN_TOKENS.colors.creamSurface, onClick: () => this.emit('main_menu') },
     ];
 
     actions.forEach((act) => {
@@ -206,15 +209,15 @@ export class PauseModal extends EventEmitter {
       btn.x = 0;
       btn.y = curY;
       this.content.addChild(btn);
-      curY += btnH + 9;
+      curY += btnH + btnGap;
     });
 
     const footer = new Text({
       text: 'Leaving asks you to confirm',
       style: new TextStyle({
-        fontFamily: 'Nunito, sans-serif',
-        fontSize: 11,
-        fill: COLORS.textMuted,
+        fontFamily: DESIGN_TOKENS.typography.fontBody,
+        fontSize: isCompact ? 10 : 11,
+        fill: DESIGN_TOKENS.colors.secondaryText,
         fontWeight: '700'
       })
     });
@@ -236,24 +239,24 @@ export class PauseModal extends EventEmitter {
     btn.eventMode = 'static';
     btn.cursor = 'pointer';
 
-    const r = 13;
+    const r = DESIGN_TOKENS.radii.sm;
     const shadow = new Graphics()
-      .roundRect(-w / 2, 3, w, h, r)
-      .fill({ color: COLORS.navyShadow });
+      .roundRect(-w / 2, DESIGN_TOKENS.shadows.buttonOffset, w, h, r)
+      .fill({ color: DESIGN_TOKENS.colors.navyOutline });
     btn.addChild(shadow);
 
     const surface = new Graphics()
       .roundRect(-w / 2, 0, w, h, r)
       .fill({ color: bgColor })
-      .stroke({ color: COLORS.navyBorder, width: 2.2 });
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.thin });
     btn.addChild(surface);
 
     const ic = new Text({
       text: icon,
       style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
         fontSize: 15,
-        fill: COLORS.textDark,
+        fill: DESIGN_TOKENS.colors.navyOutline,
         fontWeight: 'bold'
       })
     });
@@ -265,9 +268,9 @@ export class PauseModal extends EventEmitter {
     const lbl = new Text({
       text: label,
       style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
-        fontSize: 15,
-        fill: COLORS.textDark,
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
+        fontSize: 14,
+        fill: DESIGN_TOKENS.colors.navyOutline,
         fontWeight: 'bold'
       })
     });
@@ -284,5 +287,10 @@ export class PauseModal extends EventEmitter {
     btn.on('pointerupoutside', () => { surface.y = 0; });
 
     return btn;
+  }
+
+  public destroy(): void {
+    this.removeAllListeners();
+    this.container.destroy({ children: true });
   }
 }

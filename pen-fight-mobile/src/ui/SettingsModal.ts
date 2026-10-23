@@ -23,6 +23,7 @@
  */
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { COLORS, MatchFormat } from '../config/gameConstants';
+import { DESIGN_TOKENS } from '../config/designTokens';
 import { soundManager } from '../audio/SoundAndHaptics';
 import { themeManager, UiThemeMode, PenLookMode } from './ThemeManager';
 import EventEmitter from 'eventemitter3';
@@ -76,8 +77,20 @@ export class SettingsModal extends EventEmitter {
 
   private backdrop: Graphics;
   private card: Graphics;
+  private headerContainer: Container;
   private contentContainer: Container;
+  private contentMask: Graphics;
   private closeBtn: Container;
+
+  private cardX = 0;
+  private cardY = 0;
+  private cardW = 0;
+  private cardH = 0;
+  private scrollY = 0;
+  private maxScrollY = 0;
+  private isDragging = false;
+  private dragStartY = 0;
+  private scrollStartOffset = 0;
 
   constructor(screenWidth: number, screenHeight: number) {
     super();
@@ -98,21 +111,25 @@ export class SettingsModal extends EventEmitter {
     // Card surface absorbs all taps inside the modal so it NEVER closes on accidental touch
     this.card = new Graphics();
     this.card.eventMode = 'static';
-    this.card.on('pointerdown', (e) => {
-      e.stopPropagation();
-    });
     this.container.addChild(this.card);
+
+    this.contentMask = new Graphics();
+    this.container.addChild(this.contentMask);
 
     this.contentContainer = new Container();
     this.contentContainer.eventMode = 'static';
-    this.contentContainer.on('pointerdown', (e) => {
-      e.stopPropagation();
-    });
+    this.contentContainer.mask = this.contentMask;
     this.container.addChild(this.contentContainer);
+
+    this.headerContainer = new Container();
+    this.headerContainer.eventMode = 'static';
+    this.headerContainer.on('pointerdown', (e) => e.stopPropagation());
+    this.container.addChild(this.headerContainer);
 
     this.closeBtn = this.createCloseButton();
     this.container.addChild(this.closeBtn);
 
+    this.setupScrolling();
     this.loadSettings();
     this.layout();
     this.renderContent();
@@ -121,17 +138,17 @@ export class SettingsModal extends EventEmitter {
   private createCloseButton(): Container {
     const btn = new Container();
     const bg = new Graphics()
-      .roundRect(-16, -16, 32, 32, 10)
-      .fill({ color: 0xEAE2CF })
-      .stroke({ color: 0x2B333E, width: 2.2 });
+      .roundRect(-16, -16, 32, 32, DESIGN_TOKENS.radii.sm)
+      .fill({ color: DESIGN_TOKENS.colors.creamSecondary })
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.thin });
     btn.addChild(bg);
 
     const txt = new Text({
       text: '✕',
       style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
         fontSize: 15,
-        fill: 0x2B333E,
+        fill: DESIGN_TOKENS.colors.navyOutline,
         fontWeight: 'bold',
       }),
     });
@@ -146,6 +163,51 @@ export class SettingsModal extends EventEmitter {
       this.hide();
     });
     return btn;
+  }
+
+  private setupScrolling(): void {
+    const startDrag = (y: number) => {
+      this.isDragging = true;
+      this.dragStartY = y;
+      this.scrollStartOffset = this.scrollY;
+    };
+
+    const moveDrag = (y: number) => {
+      if (!this.isDragging || this.maxScrollY <= 0) return;
+      const dy = y - this.dragStartY;
+      this.scrollY = Math.min(0, Math.max(-this.maxScrollY, this.scrollStartOffset + dy));
+      this.contentContainer.y = this.cardY + 54 + this.scrollY;
+    };
+
+    const endDrag = () => {
+      this.isDragging = false;
+    };
+
+    this.card.on('pointerdown', (e) => {
+      e.stopPropagation();
+      startDrag(e.global.y);
+    });
+    this.card.on('pointermove', (e) => {
+      moveDrag(e.global.y);
+    });
+    this.card.on('pointerup', endDrag);
+    this.card.on('pointerupoutside', endDrag);
+
+    this.contentContainer.on('pointerdown', (e) => {
+      startDrag(e.global.y);
+    });
+    this.contentContainer.on('pointermove', (e) => {
+      moveDrag(e.global.y);
+    });
+    this.contentContainer.on('pointerup', endDrag);
+    this.contentContainer.on('pointerupoutside', endDrag);
+
+    this.card.on('wheel', (e: any) => {
+      e.stopPropagation();
+      if (this.maxScrollY <= 0) return;
+      this.scrollY = Math.min(0, Math.max(-this.maxScrollY, this.scrollY - (e.deltaY || 0)));
+      this.contentContainer.y = this.cardY + 54 + this.scrollY;
+    });
   }
 
   public show(): void {
@@ -168,64 +230,73 @@ export class SettingsModal extends EventEmitter {
 
     this.backdrop.clear()
       .rect(0, 0, screenWidth, screenHeight)
-      .fill({ color: 0x0F172A, alpha: 0.68 });
+      .fill({ color: DESIGN_TOKENS.colors.deepNavy, alpha: DESIGN_TOKENS.opacity.modalScrim });
 
-    const cardW = Math.min(screenWidth - 20, 404);
-    const cardH = Math.min(screenHeight - 16, 756);
-    const cardX = (screenWidth - cardW) / 2;
-    const cardY = (screenHeight - cardH) / 2;
+    this.cardW = Math.min(screenWidth - 20, 404);
+    this.cardH = Math.min(screenHeight - 16, 756);
+    this.cardX = (screenWidth - this.cardW) / 2;
+    this.cardY = (screenHeight - this.cardH) / 2;
 
-    const cardBgColor = isDark ? 0x1E293B : 0xF7F3E3;
-    const cardBorderColor = isDark ? 0x0F172A : 0x2B333E;
+    const cardBgColor = isDark ? 0x1E293B : DESIGN_TOKENS.colors.creamSurface;
+    const cardBorderColor = isDark ? 0x0F172A : DESIGN_TOKENS.colors.navyOutline;
 
     this.card.clear()
-      .roundRect(cardX, cardY + 6, cardW, cardH, 24)
-      .fill({ color: COLORS.navyShadow })
-      .roundRect(cardX, cardY, cardW, cardH, 24)
+      .roundRect(this.cardX, this.cardY + DESIGN_TOKENS.shadows.cardOffset, this.cardW, this.cardH, DESIGN_TOKENS.radii.lg)
+      .fill({ color: DESIGN_TOKENS.colors.navyOutline })
+      .roundRect(this.cardX, this.cardY, this.cardW, this.cardH, DESIGN_TOKENS.radii.lg)
       .fill({ color: cardBgColor })
-      .stroke({ color: cardBorderColor, width: 3.4 });
+      .stroke({ color: cardBorderColor, width: DESIGN_TOKENS.borders.thick });
 
     // Top pill drag indicator
     this.card
-      .roundRect(screenWidth / 2 - 22, cardY + 8, 44, 4, 2)
+      .roundRect(screenWidth / 2 - 22, this.cardY + 8, 44, 4, 2)
       .fill({ color: isDark ? 0x475569 : 0xC8BFA8 });
 
-    this.closeBtn.x = cardX + cardW - 32;
-    this.closeBtn.y = cardY + 32;
+    this.headerContainer.x = this.cardX + 18;
+    this.headerContainer.y = this.cardY + 16;
 
-    this.contentContainer.x = cardX + 18;
-    this.contentContainer.y = cardY + 16;
+    this.closeBtn.x = this.cardX + this.cardW - 32;
+    this.closeBtn.y = this.cardY + 32;
+
+    this.contentMask.clear()
+      .roundRect(this.cardX + 4, this.cardY + 50, this.cardW - 8, this.cardH - 56, 16)
+      .fill({ color: 0xFFFFFF });
+
+    this.contentContainer.x = this.cardX + 18;
+    this.contentContainer.y = this.cardY + 54 + this.scrollY;
   }
 
   private renderContent(): void {
     const cc = this.contentContainer;
     cc.removeChildren();
 
+    this.headerContainer.removeChildren();
+
     const isDark = this.settings.uiTheme === 'dark';
-    const textPrimary = isDark ? 0xF8FAFC : 0x2B333E;
-    const textMuted = isDark ? 0x94A3B8 : 0x6E6658;
+    const textPrimary = isDark ? 0xF8FAFC : DESIGN_TOKENS.colors.navyOutline;
+    const textMuted = isDark ? 0x94A3B8 : DESIGN_TOKENS.colors.secondaryText;
     const totalW = Math.min(this.screenWidth - 56, 368);
 
     // Header: [⚙] Make it yours
     const gearBadge = new Graphics()
-      .roundRect(0, 0, 30, 30, 9)
-      .fill({ color: COLORS.butterYellow })
-      .stroke({ color: 0x2B333E, width: 2 });
-    cc.addChild(gearBadge);
+      .roundRect(0, 0, 30, 30, DESIGN_TOKENS.radii.sm)
+      .fill({ color: DESIGN_TOKENS.colors.premiumGold })
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: 2 });
+    this.headerContainer.addChild(gearBadge);
 
     const gearTxt = new Text({
       text: '⚙',
-      style: new TextStyle({ fontSize: 16, fill: 0x2B333E, fontWeight: 'bold' })
+      style: new TextStyle({ fontSize: 16, fill: DESIGN_TOKENS.colors.navyOutline, fontWeight: 'bold' })
     });
     gearTxt.anchor.set(0.5, 0.5);
     gearTxt.x = 15;
     gearTxt.y = 15;
-    cc.addChild(gearTxt);
+    this.headerContainer.addChild(gearTxt);
 
     const title = new Text({
       text: 'Make it yours',
       style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
         fontSize: 20,
         fill: textPrimary,
         fontWeight: 'bold',
@@ -233,11 +304,11 @@ export class SettingsModal extends EventEmitter {
     });
     title.x = 38;
     title.y = 2;
-    cc.addChild(title);
+    this.headerContainer.addChild(title);
 
-    let currY = 38;
+    let currY = 4;
     const sectionHdrStyle = new TextStyle({
-      fontFamily: 'Nunito, sans-serif',
+      fontFamily: DESIGN_TOKENS.typography.fontBody,
       fontSize: 10,
       fill: textMuted,
       fontWeight: '800',
@@ -245,7 +316,7 @@ export class SettingsModal extends EventEmitter {
     });
 
     const subLabelStyle = new TextStyle({
-      fontFamily: 'Fredoka, sans-serif',
+      fontFamily: DESIGN_TOKENS.typography.fontHeading,
       fontSize: 12,
       fill: textPrimary,
       fontWeight: 'bold',
@@ -553,6 +624,12 @@ export class SettingsModal extends EventEmitter {
     resetRow.addChild(resetBtn);
 
     cc.addChild(resetRow);
+    currY += 34;
+
+    const visibleH = this.cardH - 64;
+    this.maxScrollY = Math.max(0, currY - visibleH);
+    this.scrollY = Math.min(0, Math.max(-this.maxScrollY, this.scrollY));
+    this.contentContainer.y = this.cardY + 54 + this.scrollY;
   }
 
   private drawDashedDivider(parent: Container, totalW: number, y: number): void {
@@ -889,5 +966,10 @@ export class SettingsModal extends EventEmitter {
     soundManager.setSFXVolume(this.settings.sfxVolume);
     soundManager.setMusicVolume(this.settings.musicVolume);
     soundManager.setVibrationEnabled(this.settings.vibration);
+  }
+
+  public destroy(): void {
+    this.removeAllListeners();
+    this.container.destroy({ children: true });
   }
 }

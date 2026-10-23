@@ -4,6 +4,8 @@
  */
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { COLORS } from '../config/gameConstants';
+import { DESIGN_TOKENS } from '../config/designTokens';
+import { soundManager } from '../audio/SoundAndHaptics';
 import EventEmitter from 'eventemitter3';
 
 export class HowToPlayModal extends EventEmitter {
@@ -28,6 +30,8 @@ export class HowToPlayModal extends EventEmitter {
     this.container.addChild(this.backdrop);
 
     this.cardContainer = new Container();
+    this.cardContainer.eventMode = 'static';
+    this.cardContainer.on('pointerdown', (e) => e.stopPropagation());
     this.container.addChild(this.cardContainer);
 
     this.layout();
@@ -191,10 +195,16 @@ export class HowToPlayModal extends EventEmitter {
     });
     closeBtn.on('pointerup', () => {
       btnSurface.y = 0;
+      soundManager.play('ui_click');
       this.hide();
     });
     closeBtn.on('pointerupoutside', () => {
       btnSurface.y = 0;
     });
+  }
+
+  public destroy(): void {
+    this.removeAllListeners();
+    this.container.destroy({ children: true });
   }
 }

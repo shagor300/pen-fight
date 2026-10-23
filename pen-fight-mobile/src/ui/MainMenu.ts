@@ -11,8 +11,10 @@
  * - Bottom Action Grid: [ 🏆 Leaderboard ], [ 📊 Stats ], [ ⚙️ Settings ], and [ ✉️ Feedback ].
  * - Clean version footer: Pen Fight Pro · v1.8.
  */
-import { Container, Graphics, Text, TextStyle, Rectangle } from 'pixi.js';
+import { Container, Graphics, Text, TextStyle, Rectangle, Sprite } from 'pixi.js';
 import { COLORS } from '../config/gameConstants';
+import { DESIGN_TOKENS } from '../config/designTokens';
+import { WoodBackgroundRenderer } from '../rendering/WoodBackgroundRenderer';
 import { ProgressionManager } from '../core/ProgressionManager';
 import { soundManager } from '../audio/SoundAndHaptics';
 import EventEmitter from 'eventemitter3';
@@ -25,7 +27,7 @@ export class MainMenu extends EventEmitter {
 
   // Background & Desk Layers
   private bgContainer: Container;
-  private deskGraphics: Graphics;
+  private bgSprite: Sprite;
 
   // Top App Bar
   private topBarContainer: Container;
@@ -77,8 +79,8 @@ export class MainMenu extends EventEmitter {
     this.bgContainer = new Container();
     this.container.addChild(this.bgContainer);
 
-    this.deskGraphics = new Graphics();
-    this.bgContainer.addChild(this.deskGraphics);
+    this.bgSprite = new Sprite();
+    this.bgContainer.addChild(this.bgSprite);
 
     // 2. Top App Bar (Avatar, Sound, Help)
     this.topBarContainer = new Container();
@@ -216,9 +218,13 @@ export class MainMenu extends EventEmitter {
 
     this.drawExecutiveDesk(screenWidth, screenHeight);
 
+    const isCompact = screenHeight < 720;
+    const isVeryCompact = screenHeight < 620;
+
     // 1. Top Bar
+    const topBarY = Math.max(16, isCompact ? 16 : Math.round(screenHeight * 0.035));
     this.topBarContainer.x = 0;
-    this.topBarContainer.y = Math.max(20, screenHeight * 0.03);
+    this.topBarContainer.y = topBarY;
 
     this.avatarBtn.x = 36;
     this.avatarBtn.y = 18;
@@ -230,69 +236,59 @@ export class MainMenu extends EventEmitter {
     this.helpBtn.y = 18;
 
     // 2. Unique 3D Game Brand Logo
-    const logoY = Math.max(90, screenHeight * 0.13);
+    const logoY = isVeryCompact ? 68 : (isCompact ? 82 : Math.max(94, Math.round(screenHeight * 0.13)));
     this.logoContainer.x = screenWidth / 2;
     this.logoContainer.y = logoY;
+    const logoScale = isVeryCompact ? 0.78 : (isCompact ? 0.88 : 1.0);
+    this.logoContainer.scale.set(logoScale);
     this.drawUniqueBrandLogo();
 
     // 3. Center Crossing Pens
-    const pensCenterY = Math.max(255, screenHeight * 0.38);
+    const pensCenterY = isVeryCompact ? 185 : (isCompact ? 222 : Math.max(255, Math.round(screenHeight * 0.37)));
     this.pensArtContainer.x = screenWidth / 2;
     this.pensArtContainer.y = pensCenterY;
+    const pensScale = isVeryCompact ? 0.72 : (isCompact ? 0.85 : 1.0);
+    this.pensArtContainer.scale.set(pensScale);
     this.drawMotionStreaks();
 
     // 4. Play Button & Subtitle
-    const playY = Math.max(440, screenHeight * 0.63);
+    const playH = isCompact ? 58 : 68;
+    const playY = isVeryCompact ? 295 : (isCompact ? 340 : Math.max(415, Math.round(screenHeight * 0.60)));
     this.playBtnContainer.x = screenWidth / 2;
     this.playBtnContainer.y = playY;
-    this.buildPlayButton();
+    this.buildPlayButton(playH);
 
     this.subText.x = screenWidth / 2;
-    this.subText.y = playY + 76;
+    this.subText.y = playY + playH + (isCompact ? 5 : 8);
 
     // 5. Bottom Action Cards (Leaderboard, Stats, Settings)
-    const cardsY = playY + 110;
+    const cardH = isCompact ? 58 : 68;
+    const cardsY = isVeryCompact ? 395 : (isCompact ? 438 : playY + playH + 36);
     this.bottomCardsContainer.x = screenWidth / 2;
     this.bottomCardsContainer.y = cardsY;
-    this.buildBottomCards();
+    this.buildBottomCards(cardH);
 
-    // 6. Feedback Button (Right aligned below settings)
-    const totalW = Math.min(this.screenWidth - 40, 360);
-    const gap = 12;
-    const cardW = (totalW - gap * 2) / 3;
-    const rightCardCenterX = totalW / 2 - cardW / 2;
-
-    this.feedbackBtn.x = screenWidth / 2 + rightCardCenterX;
-    this.feedbackBtn.y = cardsY + 84;
-
-    // 7. Footer
+    // 6. Feedback Button & Version Footer
+    const versionY = screenHeight - (isCompact ? 12 : 16);
     this.versionText.x = screenWidth / 2;
-    this.versionText.y = screenHeight - 14;
+    this.versionText.y = versionY;
+
+    const feedbackH = isCompact ? 30 : 34;
+    const feedbackY = Math.min(cardsY + cardH + (isCompact ? 10 : 16), versionY - feedbackH - 6);
+    this.feedbackBtn.x = screenWidth / 2;
+    this.feedbackBtn.y = feedbackY;
 
     this.updateStats();
     this.updateSoundIcon();
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 1. EXECUTIVE DARK WOOD DESK
+  // 1. EXECUTIVE DARK WALNUT WOOD DESK
   // ══════════════════════════════════════════════════════════════════════════
   private drawExecutiveDesk(w: number, h: number): void {
-    const g = this.deskGraphics;
-    g.clear();
-
-    // Rich dark mahogany/walnut executive wood
-    g.rect(0, 0, w, h).fill({ color: 0x2D160A });
-
-    // Clean vertical plank grooves with satin wood tone variation
-    const plankW = Math.max(86, w / 4.2);
-    for (let x = 0; x < w; x += plankW) {
-      g.rect(x, 0, 2, h).fill({ color: 0x180A04, alpha: 0.65 });
-      g.rect(x + 2, 0, plankW - 3, h).fill({ color: 0x42200E, alpha: 0.16 });
-      g.rect(x + plankW * 0.5, 0, 1.2, h).fill({ color: 0x1F0D05, alpha: 0.24 });
-    }
-
-    // Warm radial spotlight overlay from top center
-    g.ellipse(w / 2, h * 0.35, w * 0.7, h * 0.45).fill({ color: 0xFDE68A, alpha: 0.04 });
+    this.bgSprite.texture = WoodBackgroundRenderer.getWoodTexture(w, h, 'walnut');
+    this.bgSprite.width = w;
+    this.bgSprite.height = h;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -502,28 +498,30 @@ export class MainMenu extends EventEmitter {
   // ══════════════════════════════════════════════════════════════════════════
   // 4. CHUNKY PLAY BUTTON
   // ══════════════════════════════════════════════════════════════════════════
-  private buildPlayButton(): void {
+  private buildPlayButton(btnH = 68): void {
     const btnW = Math.min(this.screenWidth - 44, 360);
-    const btnH = 68;
-    const btnR = 9999;
+    const btnR = DESIGN_TOKENS.radii.pill;
+    const isCompact = btnH < 65;
 
     this.playBtnShadow.clear()
-      .roundRect(-btnW / 2, 6, btnW, btnH, btnR)
-      .fill({ color: COLORS.navyShadow });
+      .roundRect(-btnW / 2, DESIGN_TOKENS.shadows.buttonOffset, btnW, btnH, btnR)
+      .fill({ color: DESIGN_TOKENS.colors.navyOutline });
 
     this.playBtnSurface.clear()
       .roundRect(-btnW / 2, 0, btnW, btnH, btnR)
-      .fill({ color: COLORS.butterYellow })
-      .stroke({ color: COLORS.navyBorder, width: 3.6 });
+      .fill({ color: DESIGN_TOKENS.colors.premiumGold })
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.thick });
 
     this.playBtnContent.removeChildren();
+
+    const fontSize = isCompact ? 28 : 32;
 
     const playIcon = new Text({
       text: '▷',
       style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
-        fontSize: 32,
-        fill: COLORS.textDark,
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
+        fontSize,
+        fill: DESIGN_TOKENS.colors.navyOutline,
         fontWeight: 'bold',
       })
     });
@@ -535,9 +533,9 @@ export class MainMenu extends EventEmitter {
     const playLabel = new Text({
       text: 'Play',
       style: new TextStyle({
-        fontFamily: 'Fredoka, Nunito, sans-serif',
-        fontSize: 32,
-        fill: COLORS.textDark,
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
+        fontSize,
+        fill: DESIGN_TOKENS.colors.navyOutline,
         fontWeight: 'bold',
         letterSpacing: 1,
       })
@@ -566,14 +564,14 @@ export class MainMenu extends EventEmitter {
   // ══════════════════════════════════════════════════════════════════════════
   // 5. BOTTOM ACTION CARDS & FEEDBACK
   // ══════════════════════════════════════════════════════════════════════════
-  private buildBottomCards(): void {
+  private buildBottomCards(cardH = 68): void {
     this.bottomCardsContainer.removeChildren();
 
     const totalW = Math.min(this.screenWidth - 40, 360);
     const gap = 12;
     const cardW = (totalW - gap * 2) / 3;
-    const cardH = 68;
-    const cardR = 18;
+    const cardR = DESIGN_TOKENS.radii.md;
+    const isCompact = cardH < 65;
 
     const cards = [
       {
@@ -606,35 +604,35 @@ export class MainMenu extends EventEmitter {
       card.hitArea = new Rectangle(-cardW / 2, 0, cardW, cardH + 5);
 
       const shadow = new Graphics()
-        .roundRect(-cardW / 2, 5, cardW, cardH, cardR)
-        .fill({ color: COLORS.navyShadow });
+        .roundRect(-cardW / 2, DESIGN_TOKENS.shadows.cardOffset, cardW, cardH, cardR)
+        .fill({ color: DESIGN_TOKENS.colors.navyOutline });
       card.addChild(shadow);
 
       const surface = new Graphics()
         .roundRect(-cardW / 2, 0, cardW, cardH, cardR)
-        .fill({ color: COLORS.cardCream })
-        .stroke({ color: COLORS.navyBorder, width: 2.8 });
+        .fill({ color: DESIGN_TOKENS.colors.creamSurface })
+        .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.regular });
       card.addChild(surface);
 
       const icon = new Text({
         text: c.icon,
-        style: new TextStyle({ fontSize: 22 })
+        style: new TextStyle({ fontSize: isCompact ? 20 : 22 })
       });
       icon.anchor.set(0.5, 0);
-      icon.y = 8;
+      icon.y = isCompact ? 6 : 8;
       surface.addChild(icon);
 
       const lbl = new Text({
         text: c.label,
         style: new TextStyle({
-          fontFamily: 'Fredoka, Nunito, sans-serif',
-          fontSize: 11,
-          fill: COLORS.textDark,
+          fontFamily: DESIGN_TOKENS.typography.fontHeading,
+          fontSize: isCompact ? 10.5 : 11.5,
+          fill: DESIGN_TOKENS.colors.navyOutline,
           fontWeight: 'bold',
         })
       });
       lbl.anchor.set(0.5, 0);
-      lbl.y = 40;
+      lbl.y = isCompact ? 35 : 40;
       surface.addChild(lbl);
 
       card.on('pointerdown', () => { surface.y = 2.5; });
@@ -654,24 +652,24 @@ export class MainMenu extends EventEmitter {
     btn.eventMode = 'static';
     btn.cursor = 'pointer';
 
-    const w = 104;
-    const h = 34;
-    const r = 12;
+    const w = 110;
+    const h = 32;
+    const r = DESIGN_TOKENS.radii.sm;
 
     const shadow = new Graphics()
       .roundRect(-w / 2, 3, w, h, r)
-      .fill({ color: COLORS.navyShadow });
+      .fill({ color: DESIGN_TOKENS.colors.navyOutline });
     btn.addChild(shadow);
 
     const surface = new Graphics()
       .roundRect(-w / 2, 0, w, h, r)
-      .fill({ color: 0xFDFBF5 })
-      .stroke({ color: COLORS.navyBorder, width: 2.2 });
+      .fill({ color: DESIGN_TOKENS.colors.creamSurface })
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.thin });
     btn.addChild(surface);
 
     const icon = new Text({
       text: '✉',
-      style: new TextStyle({ fontSize: 13, fill: COLORS.textDark, fontWeight: 'bold' })
+      style: new TextStyle({ fontSize: 13, fill: DESIGN_TOKENS.colors.navyOutline, fontWeight: 'bold' })
     });
     icon.anchor.set(1, 0.5);
     icon.x = -3;
@@ -681,9 +679,9 @@ export class MainMenu extends EventEmitter {
     const lbl = new Text({
       text: 'Feedback',
       style: new TextStyle({
-        fontFamily: 'Fredoka, Nunito, sans-serif',
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
         fontSize: 11.5,
-        fill: COLORS.textDark,
+        fill: DESIGN_TOKENS.colors.navyOutline,
         fontWeight: 'bold',
       })
     });
@@ -711,11 +709,11 @@ export class MainMenu extends EventEmitter {
     btn.eventMode = 'static';
     btn.cursor = 'pointer';
 
-    const r = 18;
+    const r = 19;
     const circle = new Graphics()
       .circle(0, 0, r)
-      .fill({ color: 0x334155 })
-      .stroke({ color: 0x1E293B, width: 2.4 });
+      .fill({ color: DESIGN_TOKENS.colors.deepNavy })
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.regular });
     btn.addChild(circle);
 
     const icon = new Text({
@@ -726,8 +724,8 @@ export class MainMenu extends EventEmitter {
     btn.addChild(icon);
 
     const dot = new Graphics()
-      .circle(r * 0.72, -r * 0.72, 4.2)
-      .fill({ color: 0xF97316 })
+      .circle(r * 0.72, -r * 0.72, 4.5)
+      .fill({ color: DESIGN_TOKENS.colors.orangeAction })
       .stroke({ color: 0xFFFFFF, width: 1.5 });
     btn.addChild(dot);
 
@@ -745,11 +743,11 @@ export class MainMenu extends EventEmitter {
     btn.eventMode = 'static';
     btn.cursor = 'pointer';
 
-    const r = 18;
+    const r = 19;
     const circle = new Graphics()
       .circle(0, 0, r)
-      .fill({ color: 0xFDFBF5 })
-      .stroke({ color: COLORS.navyBorder, width: 2.4 });
+      .fill({ color: DESIGN_TOKENS.colors.creamSurface })
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.regular });
     btn.addChild(circle);
 
     const txt = new Text({
@@ -762,7 +760,6 @@ export class MainMenu extends EventEmitter {
     btn.on('pointerdown', (e) => {
       e.stopPropagation();
       const current = soundManager.getMuted();
-      const newState = current; // unmuting
       soundManager.setEnabled(current);
       txt.text = current ? '🔊' : '🔇';
       this.emit('sound_toggle', current);
@@ -776,19 +773,19 @@ export class MainMenu extends EventEmitter {
     btn.eventMode = 'static';
     btn.cursor = 'pointer';
 
-    const r = 18;
+    const r = 19;
     const circle = new Graphics()
       .circle(0, 0, r)
-      .fill({ color: 0xFEE39A })
-      .stroke({ color: COLORS.navyBorder, width: 2.4 });
+      .fill({ color: DESIGN_TOKENS.colors.premiumGold })
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.regular });
     btn.addChild(circle);
 
     const txt = new Text({
       text: '?',
       style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
         fontSize: 19,
-        fill: COLORS.textDark,
+        fill: DESIGN_TOKENS.colors.navyOutline,
         fontWeight: 'bold',
       })
     });
@@ -803,5 +800,10 @@ export class MainMenu extends EventEmitter {
     });
 
     return btn;
+  }
+
+  public destroy(): void {
+    this.removeAllListeners();
+    this.container.destroy({ children: true });
   }
 }

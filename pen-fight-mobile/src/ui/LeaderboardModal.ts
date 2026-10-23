@@ -8,6 +8,7 @@
  */
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { COLORS } from '../config/gameConstants';
+import { DESIGN_TOKENS } from '../config/designTokens';
 import { ProgressionManager } from '../core/ProgressionManager';
 import { soundManager } from '../audio/SoundAndHaptics';
 import EventEmitter from 'eventemitter3';
@@ -66,8 +67,6 @@ export class LeaderboardModal extends EventEmitter {
     this.container.addChild(this.backdrop);
 
     this.cardContainer = new Container();
-    this.cardContainer.eventMode = 'static';
-    this.cardContainer.on('pointerdown', (e) => e.stopPropagation());
     this.cardContainer.eventMode = 'static';
     this.cardContainer.on('pointerdown', (e) => e.stopPropagation());
     this.container.addChild(this.cardContainer);
@@ -392,5 +391,10 @@ export class LeaderboardModal extends EventEmitter {
       subNote.y = contentY + 76;
       card.addChild(subNote);
     }
+  }
+
+  public destroy(): void {
+    this.removeAllListeners();
+    this.container.destroy({ children: true });
   }
 }

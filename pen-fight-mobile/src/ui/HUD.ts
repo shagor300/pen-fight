@@ -9,6 +9,8 @@
  */
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { COLORS } from '../config/gameConstants';
+import { DESIGN_TOKENS } from '../config/designTokens';
+import { soundManager } from '../audio/SoundAndHaptics';
 import { getTopStatusPillText } from './TopHudUpdater';
 import EventEmitter from 'eventemitter3';
 
@@ -199,6 +201,7 @@ export class HUD extends EventEmitter {
     btn.on('pointerdown', () => { surface.y = 2; });
     btn.on('pointerup', () => {
       surface.y = 0;
+      soundManager.play('ui_click');
       this.emit('pause_click');
     });
     btn.on('pointerupoutside', () => { surface.y = 0; });
@@ -237,6 +240,7 @@ export class HUD extends EventEmitter {
     btn.on('pointerdown', () => { surface.y = 2; });
     btn.on('pointerup', () => {
       surface.y = 0;
+      soundManager.play('ui_click');
       this.emit('leave_click');
     });
     btn.on('pointerupoutside', () => { surface.y = 0; });
@@ -360,5 +364,10 @@ export class HUD extends EventEmitter {
 
   public hideCountdown(): void {
     this.timerContainer.visible = false;
+  }
+
+  public destroy(): void {
+    this.removeAllListeners();
+    this.container.destroy({ children: true });
   }
 }

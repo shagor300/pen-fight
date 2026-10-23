@@ -6,6 +6,8 @@
  */
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { COLORS } from '../config/gameConstants';
+import { DESIGN_TOKENS } from '../config/designTokens';
+import { soundManager } from '../audio/SoundAndHaptics';
 import EventEmitter from 'eventemitter3';
 
 export class WhoIsPlayingModal extends EventEmitter {
@@ -28,9 +30,12 @@ export class WhoIsPlayingModal extends EventEmitter {
     // Soft dimming backdrop so the wooden desk is still subtly visible
     this.backdrop = new Graphics();
     this.backdrop.eventMode = 'static';
+    this.backdrop.on('pointerdown', (e) => e.stopPropagation());
     this.container.addChild(this.backdrop);
 
     this.contentContainer = new Container();
+    this.contentContainer.eventMode = 'static';
+    this.contentContainer.on('pointerdown', (e) => e.stopPropagation());
     this.container.addChild(this.contentContainer);
 
     this.backBtn = this.createBackButton();
@@ -54,22 +59,24 @@ export class WhoIsPlayingModal extends EventEmitter {
 
     this.backdrop.clear()
       .rect(0, 0, screenWidth, screenHeight)
-      .fill({ color: 0x121820, alpha: 0.55 });
+      .fill({ color: DESIGN_TOKENS.colors.deepNavy, alpha: DESIGN_TOKENS.opacity.modalScrim });
 
     this.contentContainer.removeChildren();
 
+    const isCompact = screenHeight < 720;
+
     // ── 1. Top Bar: Back Button & Header ─────────────────────────────
-    const topBarY = Math.max(30, screenHeight * 0.05);
+    const topBarY = Math.max(20, isCompact ? 22 : Math.round(screenHeight * 0.05));
     const backBtn = this.createBackButton();
     backBtn.x = 24;
     backBtn.y = topBarY;
     this.contentContainer.addChild(backBtn);
 
     const titleStyle = new TextStyle({
-      fontFamily: 'Fredoka, Nunito, sans-serif',
-      fontSize: 26,
-      fill: COLORS.cardCream,
-      stroke: { color: COLORS.navyBorder, width: 4 },
+      fontFamily: DESIGN_TOKENS.typography.fontHeading,
+      fontSize: isCompact ? 24 : 26,
+      fill: DESIGN_TOKENS.colors.creamSurface,
+      stroke: { color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.thick },
       fontWeight: 'bold',
     });
     const headerTitle = new Text({ text: 'Who is playing?', style: titleStyle });
@@ -79,13 +86,14 @@ export class WhoIsPlayingModal extends EventEmitter {
     this.contentContainer.addChild(headerTitle);
 
     // ── 2. Mode Cards Container ──────────────────────────────────────
+    const cardWidth = Math.min(screenWidth - 40, 380);
+    const cardHeight = isCompact ? 132 : 150;
+    const cardGap = isCompact ? 16 : 24;
+
     const cardsContainer = new Container();
     cardsContainer.x = screenWidth / 2;
-    cardsContainer.y = Math.max(140, screenHeight * 0.22);
+    cardsContainer.y = Math.max(isCompact ? 90 : 130, Math.round(screenHeight * (isCompact ? 0.17 : 0.21)));
     this.contentContainer.addChild(cardsContainer);
-
-    const cardWidth = Math.min(screenWidth - 44, 380);
-    const cardHeight = 150;
 
     // Card 1: vs Computer
     const vsAiCard = this.createModeCard({
@@ -95,7 +103,9 @@ export class WhoIsPlayingModal extends EventEmitter {
       avatarIcon: '🤖',
       title: 'vs Computer',
       subtitle: 'You against the desk champion.',
+      isCompact,
       onClick: () => {
+        soundManager.play('ui_click');
         this.emit('select_mode', 'VS_AI');
       }
     });
@@ -110,24 +120,26 @@ export class WhoIsPlayingModal extends EventEmitter {
       avatarIcon: '👥',
       title: '2 players',
       subtitle: 'One device. Take turns to flick.',
+      isCompact,
       onClick: () => {
+        soundManager.play('ui_click');
         this.emit('select_mode', 'TWO_PLAYER');
       }
     });
-    twoPlayerCard.y = cardHeight + 24;
+    twoPlayerCard.y = cardHeight + cardGap;
     cardsContainer.addChild(twoPlayerCard);
 
     // ── 3. Footer: Online Coming Soon ────────────────────────────────
     const footerStyle = new TextStyle({
-      fontFamily: 'Nunito, sans-serif',
-      fontSize: 14,
-      fill: 0xD6CDBA,
+      fontFamily: DESIGN_TOKENS.typography.fontBody,
+      fontSize: isCompact ? 12.5 : 14,
+      fill: DESIGN_TOKENS.colors.secondaryText,
       fontWeight: 'bold',
     });
     const footerText = new Text({ text: '🌐 Online · Coming soon 🔒', style: footerStyle });
     footerText.anchor.set(0.5, 0.5);
     footerText.x = screenWidth / 2;
-    footerText.y = Math.min(screenHeight - 36, cardsContainer.y + (cardHeight * 2) + 70);
+    footerText.y = Math.min(screenHeight - 24, cardsContainer.y + (cardHeight * 2) + cardGap + (isCompact ? 30 : 45));
     this.contentContainer.addChild(footerText);
   }
 
@@ -136,31 +148,31 @@ export class WhoIsPlayingModal extends EventEmitter {
     btn.eventMode = 'static';
     btn.cursor = 'pointer';
 
-    const w = 48;
-    const h = 48;
-    const r = 14;
+    const w = 46;
+    const h = 46;
+    const r = DESIGN_TOKENS.radii.sm;
 
     // 3D Shadow
     const shadow = new Graphics()
-      .roundRect(0, 4, w, h, r)
-      .fill({ color: COLORS.navyShadow });
+      .roundRect(0, DESIGN_TOKENS.shadows.buttonOffset, w, h, r)
+      .fill({ color: DESIGN_TOKENS.colors.navyOutline });
     btn.addChild(shadow);
 
     // Surface
     const body = new Graphics()
       .roundRect(0, 0, w, h, r)
-      .fill({ color: COLORS.cardCream })
-      .stroke({ color: COLORS.navyBorder, width: 3 });
+      .fill({ color: DESIGN_TOKENS.colors.creamSurface })
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.regular });
     btn.addChild(body);
 
     // Yellow Left Arrow
     const arrow = new Text({
       text: '⇦',
       style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
         fontSize: 26,
-        fill: COLORS.butterYellow,
-        stroke: { color: COLORS.navyBorder, width: 3 },
+        fill: DESIGN_TOKENS.colors.premiumGold,
+        stroke: { color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.thin },
         fontWeight: 'bold',
       })
     });
@@ -176,6 +188,7 @@ export class WhoIsPlayingModal extends EventEmitter {
     btn.on('pointerup', () => {
       body.y = 0;
       arrow.y = h / 2 - 1;
+      soundManager.play('ui_click');
       this.emit('back');
     });
     btn.on('pointerupoutside', () => {
@@ -193,77 +206,80 @@ export class WhoIsPlayingModal extends EventEmitter {
     avatarIcon: string;
     title: string;
     subtitle: string;
+    isCompact?: boolean;
     onClick: () => void;
   }): Container {
     const card = new Container();
     card.eventMode = 'static';
     card.cursor = 'pointer';
 
-    const r = 22;
+    const r = DESIGN_TOKENS.radii.lg;
+    const isCompact = opts.isCompact ?? false;
 
-    // 3D Solid Bottom Shadow (0px 6px 0px)
+    // 3D Solid Bottom Shadow
     const shadow = new Graphics()
-      .roundRect(-opts.w / 2, 6, opts.w, opts.h, r)
-      .fill({ color: COLORS.navyShadow });
+      .roundRect(-opts.w / 2, DESIGN_TOKENS.shadows.cardOffset, opts.w, opts.h, r)
+      .fill({ color: DESIGN_TOKENS.colors.navyOutline });
     card.addChild(shadow);
 
     // Card Surface
     const surface = new Graphics()
       .roundRect(-opts.w / 2, 0, opts.w, opts.h, r)
-      .fill({ color: COLORS.cardCream })
-      .stroke({ color: COLORS.navyBorder, width: 3.5 });
+      .fill({ color: DESIGN_TOKENS.colors.creamSurface })
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.thick });
     card.addChild(surface);
 
     // Avatar Box (Rounded Square with dark border)
-    const avatarBoxSize = 64;
+    const avatarBoxSize = isCompact ? 54 : 64;
+    const avatarBoxY = isCompact ? 10 : 14;
     const avatarBox = new Graphics()
-      .roundRect(-avatarBoxSize / 2, 14, avatarBoxSize, avatarBoxSize, 18)
+      .roundRect(-avatarBoxSize / 2, avatarBoxY, avatarBoxSize, avatarBoxSize, DESIGN_TOKENS.radii.md)
       .fill({ color: opts.avatarBg })
-      .stroke({ color: COLORS.navyBorder, width: 3 });
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.regular });
     surface.addChild(avatarBox);
 
     const avatarText = new Text({
       text: opts.avatarIcon,
       style: new TextStyle({
-        fontSize: 32,
+        fontSize: isCompact ? 28 : 32,
         align: 'center',
       })
     });
     avatarText.anchor.set(0.5, 0.5);
     avatarText.x = 0;
-    avatarText.y = 14 + avatarBoxSize / 2;
+    avatarText.y = avatarBoxY + avatarBoxSize / 2;
     surface.addChild(avatarText);
 
     // Title
     const titleStyle = new TextStyle({
-      fontFamily: 'Fredoka, Nunito, sans-serif',
-      fontSize: 23,
-      fill: COLORS.textDark,
+      fontFamily: DESIGN_TOKENS.typography.fontHeading,
+      fontSize: isCompact ? 20 : 23,
+      fill: DESIGN_TOKENS.colors.navyOutline,
       fontWeight: 'bold',
       letterSpacing: 0.5,
     });
     const title = new Text({ text: opts.title, style: titleStyle });
     title.anchor.set(0.5, 0);
     title.x = 0;
-    title.y = 86;
+    title.y = avatarBoxY + avatarBoxSize + (isCompact ? 6 : 8);
     surface.addChild(title);
 
     // Subtitle
     const subStyle = new TextStyle({
-      fontFamily: 'Nunito, sans-serif',
-      fontSize: 13,
-      fill: COLORS.textMuted,
+      fontFamily: DESIGN_TOKENS.typography.fontBody,
+      fontSize: isCompact ? 12 : 13,
+      fill: DESIGN_TOKENS.colors.secondaryText,
       fontWeight: 'bold',
     });
     const sub = new Text({ text: opts.subtitle, style: subStyle });
     sub.anchor.set(0.5, 0);
     sub.x = 0;
-    sub.y = 116;
+    sub.y = title.y + (isCompact ? 24 : 28);
     surface.addChild(sub);
 
     // Tactile Press Physics
     card.on('pointerdown', () => {
-      surface.y = 4;
+      surface.y = 3.5;
     });
     card.on('pointerup', () => {
       surface.y = 0;
@@ -274,5 +290,10 @@ export class WhoIsPlayingModal extends EventEmitter {
     });
 
     return card;
+  }
+
+  public destroy(): void {
+    this.removeAllListeners();
+    this.container.destroy({ children: true });
   }
 }
