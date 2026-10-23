@@ -259,6 +259,7 @@ export class GameManager extends EventEmitter {
       this.state.mirrorMatch = opts.mirror;
       if (opts.look) {
         this.settingsModal.settings.penLook = opts.look;
+        themeManager.setPenLook(opts.look);
       }
       this.penModal.hide();
       this.startGame(this.selectedPenIndices[0], this.selectedPenIndices[1]);
@@ -513,7 +514,7 @@ export class GameManager extends EventEmitter {
     this.arenaCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const deskStyle = themeManager.getNormalizedDeskTheme();
-    const penLook = (themeManager.prefs.penLook || this.settingsModal.settings.penLook) === 'classic' ? 'classic' : 'real';
+    const penLook = (this.settingsModal.settings.penLook || themeManager.prefs.penLook) === 'classic' ? 'classic' : 'real';
 
     if (this.engine.pens.length < 2) {
       const p1 = PENS_ROSTER[this.selectedPenIndices[0]] || PENS_ROSTER[0];
@@ -599,7 +600,7 @@ export class GameManager extends EventEmitter {
     this.arenaCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const deskStyle = themeManager.getNormalizedDeskTheme();
-    const penLook = (themeManager.prefs.penLook || this.settingsModal.settings.penLook) === 'classic' ? 'classic' : 'real';
+    const penLook = (this.settingsModal.settings.penLook || themeManager.prefs.penLook) === 'classic' ? 'classic' : 'real';
     const showAimGuide = this.settingsModal.settings.aimGuide;
     const reduceMotion = this.settingsModal.settings.reduceMotion;
 
