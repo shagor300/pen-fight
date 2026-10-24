@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:economy": "node --experimental-strip-types --test tests/economy.test.ts",
+    "sim:economy": "node --experimental-strip-types tests/simulate.ts"
   },
   "devDependencies": {
     "@types/earcut": "^3.0.0",

@@ -821,7 +821,7 @@ export class PenSelectorModal extends EventEmitter {
       this.bottomControlsContainer.addChild(mirrorPill);
 
       // 4. Giant Butter Yellow Fight Button: [ ▷ Fight ]
-      const fightBtn = this.createActionButton(totalW, 44, '▷ Fight', COLORS.butterYellow, () => {
+      const fightBtn = this.createActionButton(totalW, 44, '▷ Choose Match', COLORS.butterYellow, () => {
         soundManager.play('flick');
         this.emit('start_fight', {
           penIndex: this.selectedIndex,
@@ -915,6 +915,7 @@ export class PenSelectorModal extends EventEmitter {
           this.emit('start_fight', {
             penIndex: this.p1EquippedIndex,
             mode: 'TWO_PLAYER',
+            p2Index: this.p2EquippedIndex,
             difficulty: 'normal',
             look: this.penLook,
             mirror: this.p1EquippedIndex === this.p2EquippedIndex,

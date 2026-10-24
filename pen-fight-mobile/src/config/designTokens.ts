@@ -150,7 +150,46 @@ export const DESIGN_TOKENS = {
     durationCelebration: 0.45,
     pressScale: 0.965,
     hoverScale: 1.025,
+    // Named durations in seconds. Everything is skipped when Reduce Motion is on.
+    press: 0.08,
+    screenTransition: 0.22,
+    currencyCountUp: 0.6,
+    xpProgress: 0.5,
+    rewardCelebration: 0.6,
+    levelUpCelebration: 0.9,
   },
+
+  // ─── 9. Semantic additions (PEN economy UI) ──────────────────────
+  semantic: {
+    success: 0x39B86B,          // same as victoryGreen
+    danger: 0xE34B52,           // same as warningRed
+    info: 0x38BDF8,
+    disabledSurface: 0xD6D0C5,
+    disabledText: 0x827C73,
+    textInverse: 0xFFFFFF,
+    borderSubtle: 0xD5C09B,
+    pen: 0xFFC94A,              // PEN currency accent (gold)
+    penDeep: 0xD99A18,
+  },
+
+  // ─── 10. Approved 4px spacing steps (use these for new UI) ───────
+  space: { s4: 4, s8: 8, s12: 12, s16: 16, s24: 24, s32: 32, s40: 40 },
+
+  // ─── 11. Semantic type roles ─────────────────────────────────────
+  type: {
+    displayLarge: { family: 'Fredoka, sans-serif', size: 34 },
+    displayMedium: { family: 'Fredoka, sans-serif', size: 26 },
+    headline: { family: 'Fredoka, sans-serif', size: 20 },
+    title: { family: 'Fredoka, sans-serif', size: 16 },
+    body: { family: 'Nunito, sans-serif', size: 14 },
+    bodySmall: { family: 'Nunito, sans-serif', size: 12 },
+    label: { family: 'Nunito, sans-serif', size: 12 },
+    currency: { family: 'Fredoka, sans-serif', size: 15 },
+    score: { family: 'Fredoka, sans-serif', size: 28 },
+  },
+
+  // ─── 12. Minimum touch target ────────────────────────────────────
+  touch: { min: 44, comfortable: 48 },
 } as const;
 
 export type DesignTokens = typeof DESIGN_TOKENS;

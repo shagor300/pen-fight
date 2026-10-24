@@ -1,405 +1,205 @@
 /**
  * src/ui/StatsModal.ts
- * Professional Career Analytics & Global Community Charts Modal
- * matching https://shunneklabs.app/games/pen-fight/ ("Me" and "World" tabs).
+ * Statistics screen: real recorded data only (no placeholders, no "world"
+ * numbers). Overview tab = matches, wins, win rate, PEN earned/spent, favorite
+ * pen. Pen Mastery tab = level and XP per pen.
  */
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
-import { COLORS } from '../config/gameConstants';
-import { DESIGN_TOKENS } from '../config/designTokens';
-import { ProgressionManager } from '../core/ProgressionManager';
-import { PENS_ROSTER } from '../config/pensConfig';
-import { soundManager } from '../audio/SoundAndHaptics';
 import EventEmitter from 'eventemitter3';
+import { DESIGN_TOKENS } from '../config/designTokens';
+import { PENS_ROSTER } from '../config/pensConfig';
+import { formatPen } from '../economy/EconomyEngine';
+import { getEconomy } from '../economy/EconomyStorage';
+import type { ProgressionManager } from '../core/ProgressionManager';
+import { SegmentedControl } from './components/SegmentedControl';
+import { ScreenScaffold } from './components/ScreenScaffold';
 
-type StatsTab = 'me' | 'world';
+type Tab = 'overview' | 'mastery';
 
 export class StatsModal extends EventEmitter {
   public container: Container;
-  private screenWidth: number;
-  private screenHeight: number;
+  private scaffold: ScreenScaffold;
   private progression: ProgressionManager;
-  private activeTab: StatsTab = 'me';
+  private tab: Tab = 'overview';
+  private w: number;
+  private h: number;
 
-  private backdrop: Graphics;
-  private cardContainer: Container;
-
-  constructor(
-    screenWidth: number,
-    screenHeight: number,
-    progression: ProgressionManager,
-  ) {
+  constructor(screenWidth: number, screenHeight: number, progression: ProgressionManager) {
     super();
-    this.screenWidth = screenWidth;
-    this.screenHeight = screenHeight;
+    this.w = screenWidth;
+    this.h = screenHeight;
     this.progression = progression;
-
-    this.container = new Container();
-    this.container.visible = false;
-
-    this.backdrop = new Graphics();
-    this.backdrop.eventMode = 'static';
-    this.backdrop.on('pointerdown', () => this.hide());
-    this.container.addChild(this.backdrop);
-
-    this.cardContainer = new Container();
-    this.cardContainer.eventMode = 'static';
-    this.cardContainer.on('pointerdown', (e) => e.stopPropagation());
-    this.container.addChild(this.cardContainer);
-
-    this.layout();
+    this.scaffold = new ScreenScaffold({ title: 'Statistics', onBack: () => this.hide() });
+    this.container = this.scaffold.container;
+    this.layout(screenWidth, screenHeight);
   }
 
   public show(): void {
-    this.container.visible = true;
-    this.renderStats();
+    this.scaffold.show();
+    this.render();
   }
 
   public hide(): void {
-    this.container.visible = false;
+    this.scaffold.hide();
   }
 
-  public layout(screenWidth = this.screenWidth, screenHeight = this.screenHeight): void {
-    this.screenWidth = screenWidth;
-    this.screenHeight = screenHeight;
-
-    this.backdrop.clear()
-      .rect(0, 0, screenWidth, screenHeight)
-      .fill({ color: 0x0F172A, alpha: 0.72 });
-
-    this.cardContainer.x = screenWidth / 2;
-    this.cardContainer.y = screenHeight / 2;
-
-    if (this.container.visible) {
-      this.renderStats();
-    }
+  public layout(screenWidth: number, screenHeight: number): void {
+    this.w = screenWidth;
+    this.h = screenHeight;
+    this.scaffold.layout(screenWidth, screenHeight);
+    if (this.scaffold.visible) this.render();
   }
 
-  private renderStats(): void {
-    this.cardContainer.removeChildren();
+  private render(): void {
+    const S = DESIGN_TOKENS.space;
+    const sc = this.scaffold;
+    const body = sc.body;
+    body.removeChildren().forEach((c) => c.destroy({ children: true }));
 
-    const stats = this.progression.getStats();
-    const cardW = Math.min(this.screenWidth - 24, 412);
-    const cardH = Math.min(this.screenHeight - 28, 610);
-    const r = 24;
+    const contentW = Math.min(this.w - 2 * sc.inset, 420);
+    const x0 = (this.w - contentW) / 2;
+    let y = sc.contentTop;
 
-    const shadow = new Graphics()
-      .roundRect(-cardW / 2, -cardH / 2 + 6, cardW, cardH, r)
-      .fill({ color: COLORS.navyShadow });
-    this.cardContainer.addChild(shadow);
-
-    const card = new Graphics()
-      .roundRect(-cardW / 2, -cardH / 2, cardW, cardH, r)
-      .fill({ color: 0xF7F3E3 })
-      .stroke({ color: 0x2B333E, width: 3.4 });
-    this.cardContainer.addChild(card);
-
-    card.roundRect(-22, -cardH / 2 + 9, 44, 4, 2).fill({ color: 0xC8BFA8 });
-
-    const topY = -cardH / 2 + 22;
-    const iconBadge = new Graphics()
-      .roundRect(-cardW / 2 + 20, topY, 34, 34, 10)
-      .fill({ color: 0x9EC5E8 })
-      .stroke({ color: 0x2B333E, width: 2 });
-    card.addChild(iconBadge);
-
-    const chartIcon = new Text({ text: '📊', style: new TextStyle({ fontSize: 18 }) });
-    chartIcon.anchor.set(0.5, 0.5);
-    chartIcon.x = -cardW / 2 + 37;
-    chartIcon.y = topY + 17;
-    card.addChild(chartIcon);
-
-    const title = new Text({
-      text: 'Stats & Charts',
-      style: new TextStyle({
-        fontFamily: 'Fredoka, sans-serif',
-        fontSize: 22,
-        fill: 0x2B333E,
-        fontWeight: 'bold',
-      })
+    const seg = new SegmentedControl({
+      width: contentW,
+      height: DESIGN_TOKENS.touch.min - 4,
+      items: [
+        { id: 'overview', label: 'Overview' },
+        { id: 'mastery', label: 'Pen Mastery' },
+      ],
+      initialSelectedId: this.tab,
+      onChange: (id) => {
+        this.tab = id as Tab;
+        setTimeout(() => {
+          if (this.scaffold.visible) this.render();
+        }, 0);
+      },
     });
-    title.x = -cardW / 2 + 64;
-    title.y = topY + 3;
-    card.addChild(title);
+    seg.x = this.w / 2;
+    seg.y = y + (DESIGN_TOKENS.touch.min - 4) / 2;
+    body.addChild(seg);
+    y += DESIGN_TOKENS.touch.min + S.s8;
 
-    // Close Button
-    const closeBtn = new Container();
-    closeBtn.x = cardW / 2 - 34;
-    closeBtn.y = topY + 17;
-    closeBtn.eventMode = 'static';
-    closeBtn.cursor = 'pointer';
-    closeBtn.addChild(
+    if (this.tab === 'overview') this.renderOverview(body, x0, y, contentW);
+    else this.renderMastery(body, x0, y, contentW);
+  }
+
+  private card(parent: Container, x: number, y: number, w: number, h: number, fill = DESIGN_TOKENS.colors.creamSurface): void {
+    parent.addChild(
       new Graphics()
-        .roundRect(-16, -16, 32, 32, 10)
-        .fill({ color: 0xEAE2CF })
-        .stroke({ color: 0x2B333E, width: 2 })
+        .roundRect(x, y + 3, w, h, DESIGN_TOKENS.radii.md).fill({ color: DESIGN_TOKENS.colors.navyShadow })
+        .roundRect(x, y, w, h, DESIGN_TOKENS.radii.md)
+        .fill({ color: fill })
+        .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.regular }),
     );
-    const closeTxt = new Text({
-      text: '✕',
-      style: new TextStyle({ fontFamily: 'Fredoka, sans-serif', fontSize: 14, fill: 0x2B333E, fontWeight: 'bold' })
-    });
-    closeTxt.anchor.set(0.5, 0.5);
-    closeBtn.addChild(closeTxt);
-    closeBtn.on('pointerdown', (e) => {
-      e.stopPropagation();
-      soundManager.play('ui_click');
-      this.hide();
-    });
-    card.addChild(closeBtn);
+  }
 
-    // 2 Tabs: "👤 Me (Career)" and "🌍 World Stats"
-    const innerW = cardW - 40;
-    const tabW = (innerW - 8) / 2;
-    const tabsY = topY + 46;
+  private txt(parent: Container, text: string, x: number, y: number, size: number, fill: number, family: string, anchorX = 0, weight: 'bold' | '700' | '800' = 'bold'): Text {
+    const t = new Text({ text, style: new TextStyle({ fontFamily: family, fontSize: size, fill, fontWeight: weight }) });
+    t.anchor.set(anchorX, 0);
+    t.x = x;
+    t.y = y;
+    parent.addChild(t);
+    return t;
+  }
 
-    const tabs: { id: StatsTab; label: string }[] = [
-      { id: 'me', label: '👤 Me (My Career)' },
-      { id: 'world', label: '🌍 World Charts' },
+  private renderOverview(body: Container, x0: number, y0: number, contentW: number): void {
+    const eco = getEconomy();
+    const st = eco.getStats();
+    const S = DESIGN_TOKENS.space;
+    const heading = DESIGN_TOKENS.type.headline.family;
+    const bodyFont = DESIGN_TOKENS.type.bodySmall.family;
+    let y = y0;
+
+    const decided = st.wins + st.losses;
+    const winRate = decided > 0 ? Math.round((st.wins / decided) * 100) : 0;
+    const kpis: { label: string; value: string }[] = [
+      { label: 'Matches', value: formatPen(st.matches) },
+      { label: 'Wins', value: formatPen(st.wins) },
+      { label: 'Losses', value: formatPen(st.losses) },
+      { label: 'Win rate', value: decided > 0 ? `${winRate}%` : '–' },
+      { label: 'PEN earned', value: formatPen(st.penEarned) },
+      { label: 'PEN spent', value: formatPen(st.penSpent) },
     ];
+    const gap = S.s8;
+    const kw = (contentW - 2 * gap) / 3;
+    const kh = 62;
+    kpis.forEach((k, i) => {
+      const col = i % 3;
+      const row = Math.floor(i / 3);
+      const kx = x0 + col * (kw + gap);
+      const ky = y + row * (kh + gap);
+      this.card(body, kx, ky, kw, kh);
+      this.txt(body, k.value, kx + kw / 2, ky + 10, 19, DESIGN_TOKENS.colors.textPrimary, heading, 0.5);
+      this.txt(body, k.label, kx + kw / 2, ky + 38, 11, DESIGN_TOKENS.colors.textSecondary, bodyFont, 0.5, '800');
+    });
+    y += 2 * (kh + gap) + S.s4;
 
-    tabs.forEach((t, idx) => {
-      const isSel = this.activeTab === t.id;
-      const tBtn = new Container();
-      tBtn.x = -innerW / 2 + idx * (tabW + 8);
-      tBtn.y = tabsY;
-      tBtn.eventMode = 'static';
-      tBtn.cursor = 'pointer';
-      tBtn.addChild(
-        new Graphics()
-          .roundRect(0, 0, tabW, 34, 10)
-          .fill({ color: isSel ? COLORS.butterYellow : 0xEAE2CF })
-          .stroke({ color: 0x2B333E, width: isSel ? 2.4 : 1.6 })
-      );
-      const lbl = new Text({
-        text: t.label,
-        style: new TextStyle({ fontFamily: 'Fredoka, sans-serif', fontSize: 12.5, fill: 0x2B333E, fontWeight: 'bold' })
-      });
-      lbl.anchor.set(0.5, 0.5);
-      lbl.x = tabW / 2;
-      lbl.y = 17;
-      tBtn.addChild(lbl);
-      tBtn.on('pointerdown', (e) => {
-        e.stopPropagation();
-        soundManager.play('ui_click');
-        this.activeTab = t.id;
-        this.renderStats();
-      });
-      card.addChild(tBtn);
+    // Win / loss split
+    const barCardH = 74;
+    this.card(body, x0, y, contentW, barCardH);
+    this.txt(body, 'WIN / LOSS', x0 + S.s12, y + S.s8, 10.5, DESIGN_TOKENS.colors.textSecondary, bodyFont, 0, '800');
+    if (decided === 0) {
+      this.txt(body, 'No matches yet. Play a VS Computer match to start your record.', x0 + S.s12, y + 32, 12, DESIGN_TOKENS.colors.textSecondary, bodyFont, 0, '700');
+    } else {
+      const bw = contentW - 2 * S.s12;
+      const bar = new Graphics().roundRect(x0 + S.s12, y + 28, bw, 16, 8).fill({ color: 0xF2B8B5 });
+      if (st.wins > 0) bar.roundRect(x0 + S.s12, y + 28, Math.max(16, (st.wins / decided) * bw), 16, 8).fill({ color: 0x8FD9A8 });
+      bar.roundRect(x0 + S.s12, y + 28, bw, 16, 8).stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.thin });
+      body.addChild(bar);
+      this.txt(body, `Won ${winRate}% (${st.wins})  ·  Lost ${100 - winRate}% (${st.losses})`, x0 + S.s12, y + 50, 12, DESIGN_TOKENS.colors.textPrimary, bodyFont, 0, '800');
+    }
+    y += barCardH + S.s12;
+
+    // Favorite pen + streak
+    const favId = eco.getFavoritePenId();
+    const fav = PENS_ROSTER.find((p) => p.id === favId);
+    const rowH = 54;
+    this.card(body, x0, y, contentW, rowH);
+    this.txt(body, 'Favorite pen', x0 + S.s12, y + 8, 11, DESIGN_TOKENS.colors.textSecondary, bodyFont, 0, '800');
+    this.txt(body, fav ? fav.name : 'None yet', x0 + S.s12, y + 26, 16, DESIGN_TOKENS.colors.textPrimary, heading);
+    this.txt(body, `Best streak ${st.bestStreak} 🔥`, x0 + contentW - S.s12, y + 19, 14, DESIGN_TOKENS.colors.textPrimary, heading, 1);
+  }
+
+  private renderMastery(body: Container, x0: number, y0: number, contentW: number): void {
+    const S = DESIGN_TOKENS.space;
+    const gap = S.s8;
+    const cols = 2;
+    const cw = (contentW - gap) / cols;
+    const avail = this.scaffold.contentBottom - y0;
+    const rows = Math.ceil(PENS_ROSTER.length / cols);
+    const ch = Math.max(56, Math.min(84, Math.floor((avail - (rows - 1) * gap - 24) / rows)));
+
+    PENS_ROSTER.forEach((pen, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = x0 + col * (cw + gap);
+      const y = y0 + row * (ch + gap);
+      const prog = this.progression.getProgress(pen.id);
+      const next = this.progression.getXPForNextLevel(pen.id);
+      this.card(body, x, y, cw, ch);
+
+      // Colour swatch from the pen's own palette
+      const sw = new Graphics()
+        .roundRect(x + S.s8, y + S.s8, 8, ch - 2 * S.s8, 4)
+        .fill({ color: parseInt(pen.colors.primary.replace('#', ''), 16) || DESIGN_TOKENS.colors.premiumGold });
+      body.addChild(sw);
+
+      this.txt(body, pen.name, x + 24, y + 8, 12.5, DESIGN_TOKENS.colors.textPrimary, DESIGN_TOKENS.type.title.family);
+      this.txt(body, prog.level >= 5 ? 'Lv.5 MAX' : `Lv.${prog.level}`, x + 24, y + 26, 12, prog.level >= 5 ? DESIGN_TOKENS.semantic.success : DESIGN_TOKENS.colors.textSecondary, DESIGN_TOKENS.type.label.family, 0, '800');
+
+      const bx = x + 24;
+      const bw = cw - 24 - S.s8;
+      const by = y + ch - 20;
+      const bar = new Graphics().roundRect(bx, by, bw, 10, 5).fill({ color: DESIGN_TOKENS.colors.creamMuted });
+      const fw = Math.max(0, Math.min(1, next.ratio)) * bw;
+      if (fw > 0) bar.roundRect(bx, by, Math.max(10, fw), 10, 5).fill({ color: DESIGN_TOKENS.colors.premiumGold });
+      bar.roundRect(bx, by, bw, 10, 5).stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.thin });
+      body.addChild(bar);
     });
 
-    const contentY = tabsY + 46;
-
-    if (this.activeTab === 'me') {
-      // 4 KPI Cards
-      const items = [
-        { label: 'Played Matches', val: `${stats.matches}`, bg: 0xFFF8E1 },
-        { label: 'Win Rate', val: `${stats.winRate}%`, bg: 0xE8F5E9 },
-        { label: 'Total Wins', val: `${stats.wins}`, bg: 0xE3F2FD },
-        { label: 'Best Streak', val: `${stats.bestStreak} 🔥`, bg: 0xFBE9E7 },
-      ];
-
-      const itemW = (innerW - 10) / 2;
-      const itemH = 64;
-      items.forEach((item, i) => {
-        const col = i % 2;
-        const row = Math.floor(i / 2);
-        const bx = -innerW / 2 + col * (itemW + 10);
-        const by = contentY + row * (itemH + 8);
-
-        card.addChild(
-          new Graphics()
-            .roundRect(bx, by, itemW, itemH, 12)
-            .fill({ color: item.bg })
-            .stroke({ color: 0x2B333E, width: 2 })
-        );
-
-        const valText = new Text({
-          text: item.val,
-          style: new TextStyle({ fontFamily: 'Fredoka, sans-serif', fontSize: 20, fill: 0x2B333E, fontWeight: 'bold' })
-        });
-        valText.anchor.set(0.5, 0);
-        valText.x = bx + itemW / 2;
-        valText.y = by + 8;
-        card.addChild(valText);
-
-        const lblText = new Text({
-          text: item.label,
-          style: new TextStyle({ fontFamily: 'Nunito, sans-serif', fontSize: 11, fill: 0x6E6658, fontWeight: '800' })
-        });
-        lblText.anchor.set(0.5, 0);
-        lblText.x = bx + itemW / 2;
-        lblText.y = by + 38;
-        card.addChild(lblText);
-      });
-
-      // Win / Loss Split Horizontal Chart Bar
-      const chartY = contentY + 150;
-      const chartTitle = new Text({
-        text: 'WIN / LOSS DISTRIBUTION CHART',
-        style: new TextStyle({ fontFamily: 'Nunito, sans-serif', fontSize: 10.5, fill: 0x6E6658, fontWeight: '800', letterSpacing: 1.2 })
-      });
-      chartTitle.x = -innerW / 2;
-      chartTitle.y = chartY;
-      card.addChild(chartTitle);
-
-      const barH = 22;
-      const winW = Math.max(24, Math.round((stats.winRate / 100) * innerW));
-      const barG = new Graphics()
-        .roundRect(-innerW / 2, chartY + 18, innerW, barH, 8)
-        .fill({ color: 0xFCA5A5 })
-        .roundRect(-innerW / 2, chartY + 18, winW, barH, 8)
-        .fill({ color: 0x86EFAC })
-        .roundRect(-innerW / 2, chartY + 18, innerW, barH, 8)
-        .stroke({ color: 0x2B333E, width: 2 });
-      card.addChild(barG);
-
-      const splitLbl = new Text({
-        text: `Won ${stats.winRate}% (${stats.wins})  ·  Lost ${100 - stats.winRate}% (${stats.losses})`,
-        style: new TextStyle({ fontFamily: 'Nunito, sans-serif', fontSize: 11, fill: 0x2B333E, fontWeight: '800' })
-      });
-      splitLbl.anchor.set(0.5, 0);
-      splitLbl.y = chartY + 44;
-      card.addChild(splitLbl);
-
-      // Pen Mastery & XP Breakdown Chart (Top 4 Pens)
-      const penChartY = chartY + 72;
-      const penHdr = new Text({
-        text: 'PEN MASTERY & XP PROGRESS',
-        style: new TextStyle({ fontFamily: 'Nunito, sans-serif', fontSize: 10.5, fill: 0x6E6658, fontWeight: '800', letterSpacing: 1.2 })
-      });
-      penHdr.x = -innerW / 2;
-      penHdr.y = penChartY;
-      card.addChild(penHdr);
-
-      PENS_ROSTER.slice(0, 4).forEach((pen, idx) => {
-        const py = penChartY + 20 + idx * 42;
-        const prog = this.progression.getProgress(pen.id);
-        const nextInfo = this.progression.getXPForNextLevel(pen.id);
-
-        card.addChild(
-          new Graphics()
-            .roundRect(-innerW / 2, py, innerW, 36, 10)
-            .fill({ color: 0xEFE9D8 })
-            .stroke({ color: 0x2B333E, width: 1.5 })
-        );
-
-        const pName = new Text({
-          text: `${pen.name} (Lv${prog.level})`,
-          style: new TextStyle({ fontFamily: 'Fredoka, sans-serif', fontSize: 12.5, fill: 0x2B333E, fontWeight: 'bold' })
-        });
-        pName.x = -innerW / 2 + 12;
-        pName.y = py + 9;
-        card.addChild(pName);
-
-        const pBarW = 130;
-        const pBarX = innerW / 2 - pBarW - 12;
-        const fillW = Math.max(10, Math.round(pBarW * Math.min(1, Math.max(0.12, nextInfo.ratio))));
-        card.addChild(
-          new Graphics()
-            .roundRect(pBarX, py + 12, pBarW, 12, 6)
-            .fill({ color: 0xD5CBB8 })
-            .roundRect(pBarX, py + 12, fillW, 12, 6)
-            .fill({ color: COLORS.butterYellow })
-            .roundRect(pBarX, py + 12, pBarW, 12, 6)
-            .stroke({ color: 0x2B333E, width: 1.4 })
-        );
-      });
-    } else {
-      // WORLD STATS TAB (Verified from https://shunneklabs.app/games/pen-fight/)
-      const worldKpis = [
-        { label: 'Players', val: '26.5k' },
-        { label: 'Matches', val: '268k' },
-        { label: 'Hours Played', val: '5,074h' },
-      ];
-      const kw = (innerW - 12) / 3;
-      worldKpis.forEach((k, idx) => {
-        const kx = -innerW / 2 + idx * (kw + 6);
-        card.addChild(
-          new Graphics()
-            .roundRect(kx, contentY, kw, 62, 12)
-            .fill({ color: 0xEFE9D8 })
-            .stroke({ color: 0x2B333E, width: 2 })
-        );
-        const vTxt = new Text({
-          text: k.val,
-          style: new TextStyle({ fontFamily: 'Fredoka, sans-serif', fontSize: 19, fill: 0x2B333E, fontWeight: 'bold' })
-        });
-        vTxt.anchor.set(0.5, 0);
-        vTxt.x = kx + kw / 2;
-        vTxt.y = contentY + 10;
-        card.addChild(vTxt);
-
-        const lTxt = new Text({
-          text: k.label,
-          style: new TextStyle({ fontFamily: 'Nunito, sans-serif', fontSize: 10.5, fill: 0x6E6658, fontWeight: '800' })
-        });
-        lTxt.anchor.set(0.5, 0);
-        lTxt.x = kx + kw / 2;
-        lTxt.y = contentY + 38;
-        card.addChild(lTxt);
-      });
-
-      // Worldwide vs Computer Split
-      const wwY = contentY + 80;
-      const wwHdr = new Text({
-        text: 'VS COMPUTER WORLDWIDE (PLAYERS 57% · AI 40% · DRAWS 3%)',
-        style: new TextStyle({ fontFamily: 'Nunito, sans-serif', fontSize: 10, fill: 0x6E6658, fontWeight: '800', letterSpacing: 1 })
-      });
-      wwHdr.x = -innerW / 2;
-      wwHdr.y = wwY;
-      card.addChild(wwHdr);
-
-      const pW = Math.round(innerW * 0.57);
-      const cW = Math.round(innerW * 0.40);
-      card.addChild(
-        new Graphics()
-          .roundRect(-innerW / 2, wwY + 18, innerW, 24, 8)
-          .fill({ color: 0xCBD5E1 })
-          .roundRect(-innerW / 2, wwY + 18, pW + cW, 24, 8)
-          .fill({ color: 0x9EC5E8 })
-          .roundRect(-innerW / 2, wwY + 18, pW, 24, 8)
-          .fill({ color: 0x86EFAC })
-          .roundRect(-innerW / 2, wwY + 18, innerW, 24, 8)
-          .stroke({ color: 0x2B333E, width: 2 })
-      );
-
-      // By Difficulty Breakdown Bars (Easy 78% · Normal 61% · Hard 49%)
-      const diffY = wwY + 62;
-      const diffHdr = new Text({
-        text: 'WIN RATE BY AI DIFFICULTY (WON · LOST · DRAWS)',
-        style: new TextStyle({ fontFamily: 'Nunito, sans-serif', fontSize: 10, fill: 0x6E6658, fontWeight: '800', letterSpacing: 1 })
-      });
-      diffHdr.x = -innerW / 2;
-      diffHdr.y = diffY;
-      card.addChild(diffHdr);
-
-      const levels = [
-        { name: 'Easy AI', won: 78, lost: 19, draw: 3, col: 0x86EFAC },
-        { name: 'Normal AI', won: 61, lost: 36, draw: 3, col: 0xFAD24B },
-        { name: 'Hard AI', won: 49, lost: 48, draw: 3, col: 0xFDBA74 },
-      ];
-
-      levels.forEach((lv, idx) => {
-        const ly = diffY + 22 + idx * 62;
-        const lbl = new Text({
-          text: `${lv.name}   —   ${lv.won}% Won  ·  ${lv.lost}% Lost  ·  ${lv.draw}% Draw`,
-          style: new TextStyle({ fontFamily: 'Fredoka, sans-serif', fontSize: 12.5, fill: 0x2B333E, fontWeight: 'bold' })
-        });
-        lbl.x = -innerW / 2;
-        lbl.y = ly;
-        card.addChild(lbl);
-
-        const wPx = Math.round((lv.won / 100) * innerW);
-        card.addChild(
-          new Graphics()
-            .roundRect(-innerW / 2, ly + 22, innerW, 18, 7)
-            .fill({ color: 0xE2DAC9 })
-            .roundRect(-innerW / 2, ly + 22, wPx, 18, 7)
-            .fill({ color: lv.col })
-            .roundRect(-innerW / 2, ly + 22, innerW, 18, 7)
-            .stroke({ color: 0x2B333E, width: 1.8 })
-        );
-      });
-    }
+    const note = this.txt(body, 'Mastery XP is earned per pen from finished matches.', this.w / 2, y0 + rows * (ch + gap) + 2, 11, DESIGN_TOKENS.colors.textOnDark, DESIGN_TOKENS.type.bodySmall.family, 0.5, '700');
+    note.alpha = 0.9;
   }
 
   public destroy(): void {

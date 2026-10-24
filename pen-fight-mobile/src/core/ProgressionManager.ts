@@ -1,9 +1,8 @@
 /**
  * ProgressionManager.ts
- * XP tracking and level unlock system.
- * PRD §6.3 — XP, Level Up & Customization.
- *
- * Uses localStorage for browser dev; will switch to @capacitor/preferences in Phase 4.
+ * Per-pen mastery XP (levels 1-5). Account XP, PEN, match counts and streaks
+ * live in the economy engine (src/economy). Pen XP is applied once per match
+ * finalization through EconomyEngine.takePendingPenXp().
  */
 
 export interface PenProgress {
@@ -68,53 +67,18 @@ export class ProgressionManager {
     return { current, needed, ratio: current / needed };
   }
 
-  private totalMatches = 0;
-  private totalWins = 0;
-  private currentStreak = 0;
-  private bestStreak = 0;
-
-  /** Record match result */
-  recordMatch(penId: string, won: boolean): PenProgress {
-    this.totalMatches++;
-    if (won) {
-      this.totalWins++;
-      this.currentStreak++;
-      if (this.currentStreak > this.bestStreak) {
-        this.bestStreak = this.currentStreak;
-      }
-    } else {
-      this.currentStreak = 0;
+  /**
+   * Remove every saved pen-mastery value (used by Reset Progress).
+   * Match counts, wins and streaks live in the economy ledger, not here.
+   */
+  reset(): void {
+    this.progressMap.clear();
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem('pen_fight_stats'); // legacy key from older builds
+    } catch {
+      // Storage unavailable
     }
-    const xp = won ? 100 : 30;
-    const res = this.addXP(penId, xp);
-    this.save();
-    return res;
-  }
-
-  getTotalMatchesPlayed(): number {
-    return Math.max(11, this.totalMatches); // defaults to 11 if fresh to match reference game aesthetic
-  }
-
-  getStats(): {
-    matches: number;
-    wins: number;
-    losses: number;
-    winRate: number;
-    currentStreak: number;
-    bestStreak: number;
-  } {
-    const matches = this.getTotalMatchesPlayed();
-    const wins = Math.max(7, this.totalWins);
-    const losses = Math.max(0, matches - wins);
-    const winRate = Math.round((wins / matches) * 100);
-    return {
-      matches,
-      wins,
-      losses,
-      winRate,
-      currentStreak: this.currentStreak,
-      bestStreak: Math.max(3, this.bestStreak),
-    };
   }
 
   /** Save to localStorage */
@@ -123,12 +87,6 @@ export class ProgressionManager {
       const data: Record<string, PenProgress> = {};
       this.progressMap.forEach((v, k) => { data[k] = v; });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      localStorage.setItem('pen_fight_stats', JSON.stringify({
-        totalMatches: this.totalMatches,
-        totalWins: this.totalWins,
-        currentStreak: this.currentStreak,
-        bestStreak: this.bestStreak
-      }));
     } catch {
       // Storage unavailable
     }
@@ -141,22 +99,16 @@ export class ProgressionManager {
       if (raw) {
         const data = JSON.parse(raw) as Record<string, PenProgress>;
         for (const [k, v] of Object.entries(data)) {
-          this.progressMap.set(k, v);
+          if (v && typeof v.xp === 'number') {
+            this.progressMap.set(k, { penId: k, xp: Math.max(0, v.xp), level: Math.min(5, Math.max(1, v.level || 1)) });
+          }
         }
       }
-      const statsRaw = localStorage.getItem('pen_fight_stats');
-      if (statsRaw) {
-        const stats = JSON.parse(statsRaw);
-        this.totalMatches = stats.totalMatches || 0;
-        this.totalWins = stats.totalWins || 0;
-        this.currentStreak = stats.currentStreak || 0;
-        this.bestStreak = stats.bestStreak || 0;
-      }
     } catch {
-      // Storage unavailable
+      // Storage unavailable or corrupt: start with empty mastery
     }
   }
 }
 
-/** Singleton progression manager */
+/** Singleton progression manager (the only instance; GameManager uses this). */
 export const progressionManager = new ProgressionManager();

@@ -10,7 +10,7 @@ import { PenFightEngine } from '../physics/PenFightEngine';
 import { ArenaRenderer } from '../rendering/ArenaRenderer';
 import { TouchAimController } from '../controllers/TouchAimController';
 import { PENS_ROSTER, PenSpec } from '../config/pensConfig';
-import { ProgressionManager } from './ProgressionManager';
+import { ProgressionManager, progressionManager as sharedProgression } from './ProgressionManager';
 import { soundSystem, soundManager } from '../audio/penFightProSoundEngine';
 import { themeManager } from '../ui/ThemeManager';
 import { HUD } from '../ui/HUD';
@@ -19,8 +19,16 @@ import { WhoIsPlayingModal } from '../ui/WhoIsPlayingModal';
 import { PenSelectorModal } from '../ui/PenSelectorModal';
 import { StatsModal } from '../ui/StatsModal';
 import { LeaderboardModal } from '../ui/LeaderboardModal';
+import { MatchSetupScreen } from '../ui/MatchSetupScreen';
+import { MissionsScreen } from '../ui/MissionsScreen';
+import { ConfirmModal } from '../ui/components/ConfirmModal';
+import { ToastNotification, type ToastKind } from '../ui/components/ToastNotification';
+import { PenChip } from '../ui/components/PenChip';
+import { getEconomy } from '../economy/EconomyStorage';
+import { formatPen, type MatchOutcome } from '../economy/EconomyEngine';
+import { ECONOMY_CONFIG, type AIDifficultyId, type MatchTierId } from '../config/economyConfig';
 import { HowToPlayModal } from '../ui/HowToPlayModal';
-import { MatchResultModal } from '../ui/MatchResultModal';
+import { MatchResultModal, type MatchResultEcon, type MatchResultData } from '../ui/MatchResultModal';
 import { PauseModal } from '../ui/PauseModal';
 import { SettingsModal, GameSettings } from '../ui/SettingsModal';
 import { COLORS, MatchFormat } from '../config/gameConstants';
@@ -79,6 +87,19 @@ export class GameManager extends EventEmitter {
   private howToPlayModal: HowToPlayModal;
   private matchResultModal: MatchResultModal;
   private pauseModal: PauseModal;
+  private matchSetup!: MatchSetupScreen;
+  private missionsScreen!: MissionsScreen;
+  private confirmModal!: ConfirmModal;
+  private toast!: ToastNotification;
+
+  // PEN economy / match lifecycle
+  private currentMatchId: string | null = null;
+  private lastTier: MatchTierId = 'practice';
+  private matchMarkedStarted = false;
+  private prePausePhase: GamePhase | null = null;
+  private lastResultData: MatchResultData | null = null;
+  private returnToPause = false;
+  private unsettledOutcome: MatchOutcome | null = null;
 
   // Selected Pens
   private selectedPenIndices: [number, number] = [0, 1];
@@ -122,12 +143,13 @@ export class GameManager extends EventEmitter {
 
     // 2. Initialize Pure Simulation Engine & Touch Controller
     this.engine = new PenFightEngine();
-    this.progressionManager = new ProgressionManager();
+    this.progressionManager = sharedProgression;
 
     this.touchController = new TouchAimController(
       this.canvasEl,
       this.engine,
-      () => (this.state.mode === 'VS_AI' ? 'ai' : '2p')
+      () => (this.state.mode === 'VS_AI' ? 'ai' : '2p'),
+      () => this.canAim()
     );
 
     // Hook audio events into the engine
@@ -159,7 +181,6 @@ export class GameManager extends EventEmitter {
     this.hud = new HUD(app.screen.width, app.screen.height);
     this.hudLayer.addChild(this.hud.container);
 
-    this.hud.on('pause_click', () => this.togglePauseMenu());
     this.hud.on('sound_toggle', (enabled: boolean) => {
       soundManager.setEnabled(enabled);
     });
@@ -217,8 +238,8 @@ export class GameManager extends EventEmitter {
       soundManager.setEnabled(enabled);
       this.settingsModal.settings.soundEnabled = enabled;
     });
-    this.mainMenu.on('open_feedback', () => {
-      window.open('https://github.com/shagor300/pen-fight/issues', '_blank');
+    this.mainMenu.on('open_missions', () => {
+      this.missionsScreen.show();
     });
 
     // ── Who Is Playing Modal ────────────────────────────────────────
@@ -245,6 +266,7 @@ export class GameManager extends EventEmitter {
     });
     this.penModal.on('start_fight', (opts: {
       penIndex: number;
+      p2Index?: number;
       mode: GameMode;
       difficulty: AIDifficulty;
       look: 'real' | 'classic';
@@ -252,7 +274,9 @@ export class GameManager extends EventEmitter {
       equalLevels: boolean;
     }) => {
       this.selectedPenIndices[0] = opts.penIndex;
-      this.selectedPenIndices[1] = opts.mirror ? opts.penIndex : (opts.penIndex + 1) % PENS_ROSTER.length;
+      this.selectedPenIndices[1] = opts.mirror
+        ? opts.penIndex
+        : (opts.p2Index ?? (opts.penIndex + 1) % PENS_ROSTER.length);
       this.state.mode = opts.mode;
       this.state.aiDifficulty = opts.difficulty;
       this.state.equalLevels = opts.equalLevels;
@@ -262,14 +286,20 @@ export class GameManager extends EventEmitter {
         themeManager.setPenLook(opts.look);
       }
       this.penModal.hide();
-      this.startGame(this.selectedPenIndices[0], this.selectedPenIndices[1]);
+      if (opts.mode === 'VS_AI') {
+        // Nothing is charged here: the player picks a tier and confirms the fee.
+        this.openMatchSetup();
+      } else {
+        // Local duels are free (no PEN stakes).
+        this.beginMatch('practice');
+      }
     });
 
     // ── Stats Modal ─────────────────────────────────────────────────
     this.statsModal = new StatsModal(app.screen.width, app.screen.height, this.progressionManager);
     this.modalLayer.addChild(this.statsModal.container);
 
-    this.leaderboardModal = new LeaderboardModal(app.screen.width, app.screen.height, this.progressionManager);
+    this.leaderboardModal = new LeaderboardModal(app.screen.width, app.screen.height);
     this.modalLayer.addChild(this.leaderboardModal.container);
 
     // ── How To Play Modal ───────────────────────────────────────────
@@ -283,6 +313,7 @@ export class GameManager extends EventEmitter {
     this.settingsModal.on('settings_changed', (cfg: GameSettings) => {
       this.applySettings(cfg);
     });
+    this.settingsModal.on('request_reset', () => this.requestResetProgress());
     this.applySettings(this.settingsModal.settings);
 
     // ── Match Result Modal ──────────────────────────────────────────
@@ -296,71 +327,71 @@ export class GameManager extends EventEmitter {
     });
 
     this.matchResultModal.on('rematch', () => {
-      this.state.scores = [0, 0];
-      this.state.roundFirstPlayer = 1;
       this.matchResultModal.hide();
-      this.startRound();
+      this.rematch();
     });
 
-    this.matchResultModal.on('change_pens', () => {
-      this.matchResultModal.hide();
-      this.penModal.show(this.selectedPenIndices[0], this.state.mode, this.state.aiDifficulty);
-    });
+    // Both ask first when the series is still open (leaving then forfeits).
+    this.matchResultModal.on('change_pens', () => this.requestLeave('change_pens'));
 
-    this.matchResultModal.on('menu', () => {
-      this.matchResultModal.hide();
-      this.showMainMenu();
-    });
+    this.matchResultModal.on('menu', () => this.requestLeave('menu'));
 
     // ── Pause Modal & In-Game Controls ──────────────────────────────
     this.pauseModal = new PauseModal(app.screen.width, app.screen.height);
     this.modalLayer.addChild(this.pauseModal.container);
 
-    this.hud.on('pause_click', () => {
-      this.pauseModal.show({
-        matchNum: this.state.scores[0] + this.state.scores[1] + 1,
-        scores: this.state.scores,
-        winsNeeded: this.state.winsNeeded,
-        mode: this.state.mode,
-        p1Streak: this.progressionManager.getStats().currentStreak,
-        p2Streak: 0,
-      });
-    });
+    this.hud.on('pause_click', () => this.pauseGame());
 
-    this.hud.on('leave_click', () => {
-      this.showMainMenu();
-    });
+    this.hud.on('leave_click', () => this.requestLeave('menu'));
 
-    this.pauseModal.on('resume', () => {
-      this.pauseModal.hide();
-    });
+    this.pauseModal.on('resume', () => this.resumeGame());
 
-    this.pauseModal.on('restart', () => {
-      this.pauseModal.hide();
-      this.state.scores = [0, 0];
-      this.state.roundFirstPlayer = 1;
-      this.startRound();
-    });
+    this.pauseModal.on('restart', () => this.requestLeave('restart'));
 
-    this.pauseModal.on('change_pens', () => {
-      this.pauseModal.hide();
-      this.penModal.show(this.selectedPenIndices[0], this.state.mode, this.state.aiDifficulty);
-    });
+    this.pauseModal.on('change_pens', () => this.requestLeave('change_pens'));
 
+    // Settings / Help opened from Pause: Pause comes back when they close.
     this.pauseModal.on('settings', () => {
       this.pauseModal.hide();
+      this.returnToPause = true;
       this.settingsModal.show();
     });
 
     this.pauseModal.on('help', () => {
       this.pauseModal.hide();
+      this.returnToPause = true;
       this.howToPlayModal.show();
     });
 
-    this.pauseModal.on('main_menu', () => {
-      this.pauseModal.hide();
-      this.showMainMenu();
+    this.pauseModal.on('main_menu', () => this.requestLeave('menu'));
+
+    // ── Economy screens, dialog and toast (always on top) ─────────────────
+    this.matchSetup = new MatchSetupScreen(app.screen.width, app.screen.height);
+    this.modalLayer.addChild(this.matchSetup.container);
+    this.matchSetup.on('back', () => {
+      this.matchSetup.hide();
+      this.penModal.show(this.selectedPenIndices[0], this.state.mode, this.state.aiDifficulty);
     });
+    this.matchSetup.on('confirm', (tier: MatchTierId) => this.beginMatch(tier));
+    this.matchSetup.on('open_missions', () => this.missionsScreen.show());
+
+    this.missionsScreen = new MissionsScreen(app.screen.width, app.screen.height);
+    this.modalLayer.addChild(this.missionsScreen.container);
+    this.missionsScreen.on('back', () => {
+      this.missionsScreen.hide();
+      if (this.state.phase === 'MENU') this.mainMenu.updateStats();
+    });
+    this.missionsScreen.on('toast', (msg: string, kind: ToastKind) => this.showToast(msg, kind));
+
+    this.confirmModal = new ConfirmModal(app.screen.width, app.screen.height);
+    this.modalLayer.addChild(this.confirmModal.container);
+
+    this.toast = new ToastNotification();
+    this.modalLayer.addChild(this.toast);
+    this.toast.layout(app.screen.width);
+
+    // Settle anything a crash or OS kill left open, and finish pen XP once.
+    this.startupRecovery();
 
     // Initial resize to set geometry & canvas pixel ratio
     this.onResize();
@@ -388,6 +419,14 @@ export class GameManager extends EventEmitter {
    * - Only exits when on the main menu.
    */
   private handleHardwareBack(): void {
+    if (this.confirmModal.isOpen) {
+      this.confirmModal.cancel();
+      return;
+    }
+    if (this.missionsScreen.isOpen) {
+      this.missionsScreen.hide();
+      return;
+    }
     if (this.howToPlayModal.container.visible) {
       this.howToPlayModal.hide();
       return;
@@ -405,12 +444,22 @@ export class GameManager extends EventEmitter {
       return;
     }
     if (this.matchResultModal.container.visible) {
-      this.matchResultModal.hide();
-      this.showMainMenu();
+      // Between rounds the match is still open: leaving needs the same warning.
+      if (getEconomy().getActiveMatch()) {
+        this.requestLeave('menu');
+      } else {
+        this.matchResultModal.hide();
+        this.showMainMenu();
+      }
       return;
     }
     if (this.pauseModal.container.visible) {
-      this.pauseModal.hide();
+      this.resumeGame();
+      return;
+    }
+    if (this.matchSetup.isOpen) {
+      this.matchSetup.hide();
+      this.penModal.show(this.selectedPenIndices[0], this.state.mode, this.state.aiDifficulty);
       return;
     }
     if (this.penModal.container.visible) {
@@ -426,7 +475,7 @@ export class GameManager extends EventEmitter {
 
     // Inside a match: pause, do not exit
     if (this.state.phase === 'PLAYER_TURN' || this.state.phase === 'SIMULATING') {
-      this.togglePauseMenu();
+      this.pauseGame();
       return;
     }
 
@@ -451,6 +500,7 @@ export class GameManager extends EventEmitter {
 
     // 2. Flick Launch Whoosh
     this.engine.onFlickSound = (power: number) => {
+      this.markMatchStarted(); // from the first shot on, leaving forfeits the entry fee
       soundSystem.playFlickLaunch(power);
       soundSystem.haptic('light');
     };
@@ -473,13 +523,17 @@ export class GameManager extends EventEmitter {
   }
 
   private applySettings(cfg: GameSettings): void {
-    this.state.matchFormat = cfg.matchFormat;
-    this.state.winsNeeded = cfg.matchFormat === 'first_to_5' ? 5 : 3;
+    // The series format is fixed for a live match; a new choice applies from the next match.
+    if (!getEconomy().getActiveMatch()) {
+      this.state.matchFormat = cfg.matchFormat;
+      this.state.winsNeeded = cfg.matchFormat === 'first_to_5' ? 5 : 3;
+    }
     // Wire physics mode into the engine
     if (cfg.physicsMode) {
       this.engine.setPhysicsMode(cfg.physicsMode);
     }
     // Invalidate cached desk texture so wood color changes instantly
+    PenChip.reduceMotion = !!cfg.reduceMotion;
     ArenaRenderer.clearDeskCache();
     if (this.state.phase === 'MENU') {
       this.renderMenuBackground();
@@ -487,7 +541,10 @@ export class GameManager extends EventEmitter {
   }
 
   public showMainMenu(): void {
+    // Safety net: no path may leave a match open (and its fee in limbo).
+    this.leaveMatch();
     this.state.phase = 'MENU';
+    this.prePausePhase = null;
     this.engine.aim.active = false;
     this.bannerContainer.visible = false;
     this.hud.container.visible = false;
@@ -499,6 +556,9 @@ export class GameManager extends EventEmitter {
     this.settingsModal.hide();
     this.pauseModal.hide();
     this.matchResultModal.hide();
+    this.matchSetup.hide();
+    this.missionsScreen.hide();
+    this.confirmModal.close();
     this.mainMenu.show();
 
     // Render an idle desk background while in the menu
@@ -539,6 +599,7 @@ export class GameManager extends EventEmitter {
 
   /** Start a round within the current match */
   private startRound(): void {
+    this.lastResultData = null;
     this.bannerContainer.visible = false;
     this.hud.showWarning(false);
     this.hud.hideCountdown();
@@ -572,7 +633,18 @@ export class GameManager extends EventEmitter {
       this.mainMenu.update(dt);
       return;
     }
-    if (this.state.phase === 'PAUSED') return;
+    // Back from Settings / Help (however it was closed): show Pause again.
+    if (
+      this.returnToPause &&
+      this.state.phase === 'PAUSED' &&
+      !this.settingsModal.container.visible &&
+      !this.howToPlayModal.container.visible
+    ) {
+      this.returnToPause = false;
+      this.showPauseModal();
+    }
+    // Paused, or choosing pens/tier: the simulation must not advance underneath.
+    if (this.state.phase === 'PAUSED' || this.state.phase === 'PEN_SELECT') return;
 
     const mode = this.state.mode === 'VS_AI' ? 'ai' : '2p';
     const diff = this.state.aiDifficulty;
@@ -620,47 +692,47 @@ export class GameManager extends EventEmitter {
       this.state.scores[0]++;
       const title = this.state.mode === 'VS_AI' ? 'YOU WIN ROUND!' : 'PLAYER 1 WINS!';
       this.showRoundBanner(title, reason);
-      this.awardXP(true);
     } else if (winner === 2) {
       this.state.scores[1]++;
       const title = this.state.mode === 'VS_AI' ? 'COMPUTER WINS ROUND!' : 'PLAYER 2 WINS!';
       this.showRoundBanner(title, reason);
-      this.awardXP(false);
     } else {
       this.showRoundBanner('ROUND DRAW!', reason);
-      this.awardXP(false);
     }
 
+    // PEN and XP are settled once, when the whole series ends (never per round).
     const matchEnded = this.checkMatchWin();
+    let econ: MatchResultEcon | undefined;
+    if (matchEnded) {
+      econ = this.settleSeries();
+    }
     soundSystem.stopAllTableSlides();
 
+    const stakeFee = getEconomy().getActiveMatch()?.entryFee ?? 0;
+    const streak = getEconomy().getStats().currentStreak;
+
     setTimeout(() => {
+      // The player may have left during the banner (Home / Main Menu).
+      if (this.state.phase !== 'ROUND_RESULT') return;
       this.bannerContainer.visible = false;
       const p1Spec = PENS_ROSTER[this.selectedPenIndices[0]];
       const p2Spec = PENS_ROSTER[this.selectedPenIndices[1]];
       soundSystem.playMatchEndPopup(winner === 1);
-      this.matchResultModal.show({
+      this.lastResultData = {
         winner: winner === 1 ? 1 : 2,
         scores: this.state.scores,
         winsNeeded: this.state.winsNeeded,
         mode: this.state.mode,
         p1Pen: p1Spec,
         p2Pen: p2Spec,
-        streak: this.progressionManager.getStats().currentStreak,
-        xpEarned: winner === 1 ? 50 : 15,
+        streak,
         isSeriesComplete: matchEnded,
-      });
+        roundDraw: winner === 0,
+        stakeFee,
+        econ,
+      };
+      this.matchResultModal.show(this.lastResultData);
     }, 1500);
-  }
-
-  private awardXP(p1Won: boolean): void {
-    const p1Id = PENS_ROSTER[this.selectedPenIndices[0]].id;
-    const p2Id = PENS_ROSTER[this.selectedPenIndices[1]].id;
-
-    this.progressionManager.recordMatch(p1Id, p1Won);
-    if (this.state.mode === 'TWO_PLAYER') {
-      this.progressionManager.recordMatch(p2Id, !p1Won);
-    }
   }
 
   private checkMatchWin(): boolean {
@@ -715,11 +787,6 @@ export class GameManager extends EventEmitter {
     soundSystem.playTurnBanner();
   }
 
-  private togglePauseMenu(): void {
-    if (this.state.phase === 'MENU') return;
-    this.showMainMenu();
-  }
-
   private onResize(): void {
     const w = window.innerWidth;
     const h = window.innerHeight;
@@ -741,12 +808,291 @@ export class GameManager extends EventEmitter {
     this.howToPlayModal.layout(w, h);
     this.matchResultModal.layout(w, h);
     this.pauseModal.layout(w, h);
+    this.matchSetup.layout(w, h);
+    this.missionsScreen.layout(w, h);
+    this.confirmModal.layout(w, h);
+    this.toast.layout(w);
 
     this.bannerContainer.x = w / 2;
     this.bannerContainer.y = h / 2;
 
     if (this.state.phase === 'MENU') {
       this.renderMenuBackground();
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PEN ECONOMY: match lifecycle
+  // ═══════════════════════════════════════════════════════════════════════
+
+  private showToast(message: string, kind: ToastKind = 'info', ms = 2600): void {
+    this.toast.show(message, kind, ms);
+  }
+
+  private ecoDifficulty(): AIDifficultyId {
+    const d = this.state.aiDifficulty;
+    return d === 'master' ? 'hard' : d;
+  }
+
+  /** Touch aiming is only allowed while a match is live and nothing covers it. */
+  private canAim(): boolean {
+    if (this.confirmModal && this.confirmModal.isOpen) return false;
+    return this.state.phase === 'PLAYER_TURN' || this.state.phase === 'SIMULATING';
+  }
+
+  private openMatchSetup(preselect?: MatchTierId): void {
+    this.matchSetup.show({
+      mode: this.state.mode,
+      difficulty: this.ecoDifficulty(),
+      endless: this.state.matchFormat === 'endless',
+      preselect: preselect ?? this.lastTier,
+    });
+  }
+
+  /** Charge the fee (if any) once, open the match record, then start playing. */
+  private beginMatch(tier: MatchTierId): void {
+    const eco = getEconomy();
+    // A leftover open match would block a new one; settle it first.
+    this.leaveMatch();
+    // Pick up the format chosen in Settings (locked while a match is open).
+    this.state.matchFormat = this.settingsModal.settings.matchFormat;
+    this.state.winsNeeded = this.state.matchFormat === 'first_to_5' ? 5 : 3;
+
+    const matchId = `m_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const p1 = PENS_ROSTER[this.selectedPenIndices[0]];
+    const p2 = PENS_ROSTER[this.selectedPenIndices[1]];
+    const r = eco.startMatch({
+      matchId,
+      mode: this.state.mode,
+      tier,
+      difficulty: this.ecoDifficulty(),
+      penId: p1.id,
+      opponentPenId: this.state.mode === 'TWO_PLAYER' ? p2.id : null,
+      endless: this.state.matchFormat === 'endless',
+    });
+    if (!r.ok) {
+      this.showToast(r.message, 'error', 3200);
+      return;
+    }
+    this.currentMatchId = matchId;
+    this.lastTier = tier;
+    this.matchMarkedStarted = false;
+    this.matchSetup.hide();
+    this.startGame(this.selectedPenIndices[0], this.selectedPenIndices[1]);
+  }
+
+  /** First shot fired: from now on leaving the match forfeits the entry fee. */
+  private markMatchStarted(): void {
+    if (this.matchMarkedStarted || !this.currentMatchId) return;
+    // Only remember success, so a failed save is retried on the next shot.
+    const r = getEconomy().markMatchStarted(this.currentMatchId);
+    if (r.ok) this.matchMarkedStarted = true;
+  }
+
+  /** Series finished: settle PEN and XP exactly once and build the result data. */
+  private settleSeries(): MatchResultEcon | undefined {
+    const eco = getEconomy();
+    const id = this.currentMatchId;
+    if (!id) return undefined;
+    const outcome: MatchOutcome = this.state.scores[0] > this.state.scores[1] ? 'win' : 'loss';
+    const r = eco.finalizeMatch(id, outcome);
+    if (!r.ok) {
+      // Keep the outcome so Rematch / Leave can retry the save instead of forfeiting.
+      this.unsettledOutcome = outcome;
+      this.showToast(`Could not save the result: ${r.message}`, 'error', 4000);
+      return undefined;
+    }
+    this.unsettledOutcome = null;
+    this.currentMatchId = null;
+    this.applyPendingPenXp();
+    const m = r.match;
+    if (m.levelsGained.length > 0 && r.fresh) {
+      this.showToast(`Level up! You reached level ${m.levelsGained[m.levelsGained.length - 1]}`, 'success', 3200);
+    }
+    return {
+      tierLabel: ECONOMY_CONFIG.tiers[m.tier].label,
+      entryFee: m.entryFee,
+      payout: m.payout,
+      netPen: m.netPen,
+      bonusPen: m.bonusPen,
+      balanceAfter: m.balanceAfter ?? eco.getBalance(),
+      accountXp: m.accountXp,
+      penXp: m.penXp,
+      levelsGained: m.levelsGained,
+      forfeited: m.forfeited,
+    };
+  }
+
+  /** Apply queued pen mastery XP. The queue is cleared first, so it can never double-apply. */
+  private applyPendingPenXp(): void {
+    for (const x of getEconomy().takePendingPenXp()) {
+      this.progressionManager.addXP(x.penId, x.amount);
+    }
+  }
+
+  /**
+   * End the current match without a normal result: refund before the first
+   * shot, forfeit after it. Endless Practice is simply scored where it stands.
+   */
+  private leaveMatch(): void {
+    const eco = getEconomy();
+    const m = eco.getActiveMatch();
+    if (!m) {
+      this.currentMatchId = null;
+      return;
+    }
+    if (this.unsettledOutcome) {
+      // A finished series whose save failed: retry it rather than forfeit.
+      const retry = eco.finalizeMatch(m.matchId, this.unsettledOutcome);
+      if (retry.ok) this.unsettledOutcome = null;
+      else eco.abandonMatch(m.matchId);
+    } else if (m.status === 'in_progress' && m.tier === 'practice' && m.endless) {
+      const [a, b] = this.state.scores;
+      eco.finalizeMatch(m.matchId, a > b ? 'win' : a < b ? 'loss' : 'draw');
+    } else {
+      eco.abandonMatch(m.matchId);
+    }
+    this.currentMatchId = null;
+    this.applyPendingPenXp();
+  }
+
+  /** Ask before leaving a live match, saying exactly what it costs. */
+  private requestLeave(next: 'menu' | 'restart' | 'change_pens'): void {
+    const m = getEconomy().getActiveMatch();
+    const proceed = (): void => {
+      this.pauseModal.hide();
+      this.matchResultModal.hide();
+      this.prePausePhase = null;
+      this.leaveMatch();
+      if (next === 'menu') {
+        this.showMainMenu();
+      } else if (next === 'change_pens') {
+        // Menu phase keeps Android Back and the simulation (stopped) consistent
+        this.state.phase = 'MENU';
+        this.hud.container.visible = false;
+        this.penModal.show(this.selectedPenIndices[0], this.state.mode, this.state.aiDifficulty);
+      } else {
+        this.rematch();
+      }
+    };
+    if (!m) {
+      proceed();
+      return;
+    }
+
+    let body: string;
+    let danger = false;
+    if (m.status === 'in_progress' && m.entryFee > 0) {
+      body = `Leaving now counts as a loss and you lose your ${formatPen(m.entryFee)} PEN entry fee.`;
+      danger = true;
+    } else if (m.status === 'in_progress') {
+      body = 'Leaving now ends this match without rewards.';
+    } else if (m.entryFee > 0) {
+      body = `No shot has been taken yet, so your ${formatPen(m.entryFee)} PEN entry fee will be refunded.`;
+    } else {
+      body = 'Leave this match?';
+    }
+    this.freeze();
+    this.confirmModal.open({
+      title: 'Leave match?',
+      body,
+      confirmLabel: 'Leave',
+      cancelLabel: 'Stay',
+      danger,
+      onConfirm: proceed,
+      onCancel: () => {
+        // Stay. The result card hides itself when one of its buttons is tapped,
+        // so bring it back; otherwise carry on playing unless the pause menu is up.
+        if (this.state.phase === 'ROUND_RESULT' && !this.matchResultModal.container.visible && this.lastResultData) {
+          this.matchResultModal.show(this.lastResultData);
+        } else if (!this.pauseModal.container.visible && !this.matchResultModal.container.visible) {
+          this.unfreeze();
+        }
+      },
+    });
+  }
+
+  /** New match with the same pens. Paid tiers must be confirmed (and charged) again. */
+  private rematch(): void {
+    this.state.scores = [0, 0];
+    this.state.roundFirstPlayer = 1;
+    this.hud.container.visible = false;
+    this.state.phase = 'MENU';
+    if (this.state.mode === 'VS_AI' && this.lastTier !== 'practice') {
+      this.openMatchSetup(this.lastTier);
+    } else {
+      this.beginMatch('practice');
+    }
+  }
+
+  // ── Pause (the match really stops while paused) ───────────────────────
+
+  private freeze(): void {
+    if (this.state.phase === 'PLAYER_TURN' || this.state.phase === 'SIMULATING') {
+      this.prePausePhase = this.state.phase;
+      this.state.phase = 'PAUSED';
+      this.engine.aim.active = false;
+      soundSystem.stopAllTableSlides();
+    }
+  }
+
+  private unfreeze(): void {
+    if (this.state.phase === 'PAUSED') {
+      this.state.phase = this.prePausePhase ?? 'PLAYER_TURN';
+      this.prePausePhase = null;
+    }
+  }
+
+  private pauseGame(): void {
+    if (this.state.phase !== 'PLAYER_TURN' && this.state.phase !== 'SIMULATING') return;
+    this.freeze();
+    this.showPauseModal();
+  }
+
+  private showPauseModal(): void {
+    this.pauseModal.show({
+      matchNum: this.state.scores[0] + this.state.scores[1] + 1,
+      scores: this.state.scores,
+      winsNeeded: this.state.winsNeeded,
+      mode: this.state.mode,
+      p1Streak: getEconomy().getStats().currentStreak,
+      p2Streak: 0,
+    });
+  }
+
+  private resumeGame(): void {
+    this.pauseModal.hide();
+    this.unfreeze();
+  }
+
+  // ── Reset progress, startup recovery ──────────────────────────────
+
+  private requestResetProgress(): void {
+    this.confirmModal.open({
+      title: 'Reset progress?',
+      body: 'This clears your PEN balance, XP, levels, stats and pen mastery. This cannot be undone.',
+      confirmLabel: 'Reset',
+      cancelLabel: 'Cancel',
+      danger: true,
+      onConfirm: () => {
+        this.leaveMatch();
+        getEconomy().resetAll();
+        this.progressionManager.reset();
+        this.settingsModal.hide();
+        this.showMainMenu();
+        this.showToast('Progress reset. You start with a fresh PEN balance.', 'info', 3600);
+      },
+    });
+  }
+
+  private startupRecovery(): void {
+    const eco = getEconomy();
+    const note = eco.recoverInterrupted();
+    this.applyPendingPenXp();
+    if (eco.recoveredFromCorruption) {
+      this.showToast('Saved data could not be read, so a new wallet was created.', 'error', 5000);
+    } else if (note) {
+      this.showToast(note, 'info', 4500);
     }
   }
 }
