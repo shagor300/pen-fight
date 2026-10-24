@@ -30,6 +30,7 @@ export class TouchAimController {
     this.canvas.addEventListener('pointerdown', (e: PointerEvent) => {
       soundSystem.init();
       if (!this.canAim()) return;
+      if (this.activePointerId !== null) return; // ignore a second finger mid-aim
       if (this.engine.phase !== 'AIMING' || this.engine.pens.length < 2) return;
       if (this.getMode() === 'ai' && this.engine.activePlayer === 2) return;
 

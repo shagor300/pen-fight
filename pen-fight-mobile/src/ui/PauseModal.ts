@@ -85,7 +85,7 @@ export class PauseModal extends EventEmitter {
 
   private renderModal(): void {
     if (!this.data) return;
-    this.content.removeChildren();
+    for (const c of this.content.removeChildren()) c.destroy({ children: true });
 
     const isCompact = this.screenHeight < 720;
     const w = Math.min(this.screenWidth - 28, 380);
@@ -193,7 +193,7 @@ export class PauseModal extends EventEmitter {
           const curIdx = DESK_WOOD_THEMES.findIndex(t => t.id === activeWood.id);
           const nextTheme = DESK_WOOD_THEMES[(curIdx + 1) % DESK_WOOD_THEMES.length];
           await themeManager.setDeskTheme(nextTheme.id);
-          this.renderModal();
+          setTimeout(() => this.renderModal(), 0);
         }
       },
       { icon: '⚙', label: 'Settings', bg: DESIGN_TOKENS.colors.creamSurface, onClick: () => this.emit('settings') },

@@ -199,7 +199,7 @@ export class HUD extends EventEmitter {
     surface.addChild(iconG);
 
     btn.on('pointerdown', () => { surface.y = 2; });
-    btn.on('pointerup', () => {
+    btn.on('pointertap', () => {
       surface.y = 0;
       soundManager.play('ui_click');
       this.emit('pause_click');
@@ -238,7 +238,7 @@ export class HUD extends EventEmitter {
     surface.addChild(txt);
 
     btn.on('pointerdown', () => { surface.y = 2; });
-    btn.on('pointerup', () => {
+    btn.on('pointertap', () => {
       surface.y = 0;
       soundManager.play('ui_click');
       this.emit('leave_click');

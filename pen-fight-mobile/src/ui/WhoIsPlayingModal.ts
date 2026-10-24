@@ -61,7 +61,7 @@ export class WhoIsPlayingModal extends EventEmitter {
       .rect(0, 0, screenWidth, screenHeight)
       .fill({ color: DESIGN_TOKENS.colors.deepNavy, alpha: DESIGN_TOKENS.opacity.modalScrim });
 
-    this.contentContainer.removeChildren();
+    for (const c of this.contentContainer.removeChildren()) c.destroy({ children: true });
 
     const isCompact = screenHeight < 720;
 

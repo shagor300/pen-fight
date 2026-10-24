@@ -1218,6 +1218,11 @@ export class PenFightEngine {
       for (const pen of this.pens) {
         if (pen.x < b2.x || pen.x > b2.x + b2.w || pen.y < b2.y || pen.y > b2.y + b2.h) {
           pen.falling = true;
+          pen.overhangRatio = 0;
+          pen.wobbleOffsetX = 0;
+          pen.wobbleOffsetY = 0;
+          pen.wobbleAngle = 0;
+          pen.wobbleScale = 1.0;
           pen.vz = -40;
           pen.zHeight = 0;
           pen.tiltAngle = 0;

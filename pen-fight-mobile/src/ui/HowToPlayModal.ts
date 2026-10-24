@@ -26,7 +26,7 @@ export class HowToPlayModal extends EventEmitter {
 
     this.backdrop = new Graphics();
     this.backdrop.eventMode = 'static';
-    this.backdrop.on('pointerdown', () => this.hide());
+    this.backdrop.on('pointertap', () => this.hide());
     this.container.addChild(this.backdrop);
 
     this.cardContainer = new Container();
@@ -63,7 +63,7 @@ export class HowToPlayModal extends EventEmitter {
   }
 
   private renderContent(): void {
-    this.cardContainer.removeChildren();
+    for (const c of this.cardContainer.removeChildren()) c.destroy({ children: true });
 
     const cardW = Math.min(this.screenWidth - 40, 370);
     const cardH = 430;
