@@ -7,6 +7,7 @@ import { Application } from 'pixi.js';
 import { GameManager } from './core/GameManager';
 import { themeManager } from './ui/ThemeManager';
 import { soundSystem } from './audio/penFightProSoundEngine';
+import { initEconomy } from './economy/EconomyStorage';
 
 async function boot(): Promise<void> {
   // Unlock Web Audio API on first user interaction
@@ -42,15 +43,24 @@ async function boot(): Promise<void> {
   canvas.style.zIndex = '10';
   canvas.style.touchAction = 'none'; // prevent browser gestures
 
-  // Load fonts via CSS
-  const fontLink = document.createElement('style');
-  fontLink.textContent = `
-    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;700&family=Nunito:wght@400;700&display=swap');
-  `;
-  document.head.appendChild(fontLink);
+  // Fonts are bundled (@fontsource, imported in style.css), so no network is
+  // needed. Wait briefly so the first Pixi text render uses the right face.
+  try {
+    await Promise.race([
+      Promise.all([
+        document.fonts.load('700 20px Fredoka'),
+        document.fonts.load('600 14px Fredoka'),
+        document.fonts.load('700 14px Nunito'),
+        document.fonts.load('800 14px Nunito'),
+      ]),
+      new Promise((r) => setTimeout(r, 1500)),
+    ]);
+  } catch {
+    // Fall back to system fonts rather than blocking startup
+  }
 
-  // Wait a moment for fonts to start loading
-  await new Promise(r => setTimeout(r, 300));
+  // Load the PEN wallet (newest of localStorage / Preferences) before any UI
+  await initEconomy();
 
   const gameManager = new GameManager(app);
 

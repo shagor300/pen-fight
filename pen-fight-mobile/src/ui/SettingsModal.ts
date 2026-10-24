@@ -587,7 +587,7 @@ export class SettingsModal extends EventEmitter {
     resetRow.addChild(rTitle);
 
     const rSub = new Text({
-      text: 'Clears XP, levels and streaks. Settings stay.',
+      text: 'Clears PEN, XP, levels, stats and streaks. Settings stay.',
       style: new TextStyle({ fontFamily: 'Nunito, sans-serif', fontSize: 10, fill: textMuted, fontWeight: '700' })
     });
     rSub.y = 16;
@@ -615,11 +615,8 @@ export class SettingsModal extends EventEmitter {
     resetBtn.cursor = 'pointer';
     resetBtn.on('pointerdown', (e) => {
       e.stopPropagation();
-      try {
-        localStorage.removeItem('shunnek_pen_fight_progression');
-        soundManager.play('round_lose');
-        window.location.reload();
-      } catch {}
+      // GameManager shows the confirmation dialog and performs the reset.
+      this.emit('request_reset');
     });
     resetRow.addChild(resetBtn);
 

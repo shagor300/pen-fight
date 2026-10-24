@@ -9,7 +9,9 @@ export class TouchAimController {
   constructor(
     private canvas: HTMLCanvasElement,
     private engine: PenFightEngine,
-    private getMode: () => 'ai' | '2p'
+    private getMode: () => 'ai' | '2p',
+    /** Return false while a menu, dialog or pause is open so aiming is ignored. */
+    private canAim: () => boolean = () => true
   ) {
     this.bindEvents();
   }
@@ -27,6 +29,7 @@ export class TouchAimController {
   private bindEvents(): void {
     this.canvas.addEventListener('pointerdown', (e: PointerEvent) => {
       soundSystem.init();
+      if (!this.canAim()) return;
       if (this.engine.phase !== 'AIMING' || this.engine.pens.length < 2) return;
       if (this.getMode() === 'ai' && this.engine.activePlayer === 2) return;
 

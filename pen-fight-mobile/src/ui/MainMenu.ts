@@ -7,8 +7,9 @@
  * - Top App Bar: Profile Avatar [ 👤 Lv.1 ] on the left; Sound Toggle [ 🔊 ] and Help [ ? ] on the right.
  * - Unique 3D Game Brand Logo: "PEN FIGHT" with dimensional depth and gold ribbon "★ PRO DESK COMBAT ★" (No ripped paper!).
  * - Live Floating Crossing 3D Pens (Orange Ballpoint & Blue Rollerball) with 60-120fps floating physics & collision sparks.
- * - Chunky Butter-Yellow [ ▷ Play ] button with "Played X Matches" subtitle.
- * - Bottom Action Grid: [ 🏆 Leaderboard ], [ 📊 Stats ], [ ⚙️ Settings ], and [ ✉️ Feedback ].
+ * - PEN balance chip next to the profile; avatar shows the account level.
+ * - Chunky Butter-Yellow [ ▷ Play ] button with account level / XP subtitle.
+ * - Bottom Action Grid: [ 🏆 Leaderboard ], [ 📊 Stats ], [ ⚙️ Settings ], and [ 🎯 Daily Missions ].
  * - Clean version footer: Pen Fight Pro · v1.8.
  */
 import { Container, Graphics, Text, TextStyle, Rectangle, Sprite } from 'pixi.js';
@@ -16,6 +17,9 @@ import { COLORS } from '../config/gameConstants';
 import { DESIGN_TOKENS } from '../config/designTokens';
 import { WoodBackgroundRenderer } from '../rendering/WoodBackgroundRenderer';
 import { ProgressionManager } from '../core/ProgressionManager';
+import { PenChip } from './components/PenChip';
+import { formatPen } from '../economy/EconomyEngine';
+import { getEconomy } from '../economy/EconomyStorage';
 import { soundManager } from '../audio/SoundAndHaptics';
 import EventEmitter from 'eventemitter3';
 
@@ -35,6 +39,10 @@ export class MainMenu extends EventEmitter {
   private soundBtn: Container;
   private helpBtn: Container;
   private soundBtnText: Text;
+  private penChip!: PenChip;
+  private avatarLvText!: Text;
+  private missionBadge!: Container;
+  private missionBadgeText!: Text;
 
   // Brand Logo Container (Clean & Unique, no paper!)
   private logoContainer: Container;
@@ -89,6 +97,10 @@ export class MainMenu extends EventEmitter {
     this.avatarBtn = this.createAvatarButton();
     this.topBarContainer.addChild(this.avatarBtn);
 
+    // PEN balance (tap to open Daily Missions)
+    this.penChip = new PenChip({ height: 34, onTap: () => this.emit('open_missions') });
+    this.topBarContainer.addChild(this.penChip);
+
     const { btn: soundBtn, text: soundTxt } = this.createSoundButton();
     this.soundBtn = soundBtn;
     this.soundBtnText = soundTxt;
@@ -142,7 +154,7 @@ export class MainMenu extends EventEmitter {
     this.bottomCardsContainer = new Container();
     this.container.addChild(this.bottomCardsContainer);
 
-    this.feedbackBtn = this.createFeedbackButton();
+    this.feedbackBtn = this.createMissionsButton();
     this.container.addChild(this.feedbackBtn);
 
     // 7. Version Footer
@@ -171,10 +183,16 @@ export class MainMenu extends EventEmitter {
   }
 
   public updateStats(): void {
-    if (this.progression) {
-      const count = this.progression.getTotalMatchesPlayed();
-      this.subText.text = `Played ${count} Matches`;
-    }
+    const eco = getEconomy();
+    const acct = eco.getAccountProgress();
+    this.subText.text = acct.maxed
+      ? `Level ${acct.level} · Max`
+      : `Level ${acct.level} · ${formatPen(acct.xpIntoLevel)}/${formatPen(acct.xpForNext)} XP`;
+    this.avatarLvText.text = `${acct.level}`;
+    const claimable = eco.getMissions().filter((m) => m.claimable).length + (eco.canClaimAllowance() ? 1 : 0);
+    this.missionBadge.visible = claimable > 0;
+    this.missionBadgeText.text = `${claimable}`;
+    this.penChip.x = 36 + 19 + 10;
   }
 
   public updateSoundIcon(): void {
@@ -229,6 +247,9 @@ export class MainMenu extends EventEmitter {
     this.avatarBtn.x = 36;
     this.avatarBtn.y = 18;
 
+    this.penChip.x = 36 + 19 + 10;
+    this.penChip.y = 18;
+
     this.soundBtn.x = screenWidth - 84;
     this.soundBtn.y = 18;
 
@@ -273,7 +294,7 @@ export class MainMenu extends EventEmitter {
     this.versionText.x = screenWidth / 2;
     this.versionText.y = versionY;
 
-    const feedbackH = isCompact ? 30 : 34;
+    const feedbackH = isCompact ? 34 : 38;
     const feedbackY = Math.min(cardsY + cardH + (isCompact ? 10 : 16), versionY - feedbackH - 6);
     this.feedbackBtn.x = screenWidth / 2;
     this.feedbackBtn.y = feedbackY;
@@ -647,54 +668,66 @@ export class MainMenu extends EventEmitter {
     });
   }
 
-  private createFeedbackButton(): Container {
+  private createMissionsButton(): Container {
     const btn = new Container();
     btn.eventMode = 'static';
     btn.cursor = 'pointer';
 
-    const w = 110;
-    const h = 32;
+    const w = 168;
+    const h = 36;
     const r = DESIGN_TOKENS.radii.sm;
 
-    const shadow = new Graphics()
-      .roundRect(-w / 2, 3, w, h, r)
-      .fill({ color: DESIGN_TOKENS.colors.navyOutline });
-    btn.addChild(shadow);
-
+    btn.addChild(
+      new Graphics()
+        .roundRect(-w / 2, 3, w, h, r)
+        .fill({ color: DESIGN_TOKENS.colors.navyOutline }),
+    );
     const surface = new Graphics()
       .roundRect(-w / 2, 0, w, h, r)
-      .fill({ color: DESIGN_TOKENS.colors.creamSurface })
-      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.thin });
+      .fill({ color: DESIGN_TOKENS.colors.premiumGold })
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.regular });
     btn.addChild(surface);
 
-    const icon = new Text({
-      text: '✉',
-      style: new TextStyle({ fontSize: 13, fill: DESIGN_TOKENS.colors.navyOutline, fontWeight: 'bold' })
-    });
-    icon.anchor.set(1, 0.5);
-    icon.x = -3;
-    icon.y = h / 2;
-    surface.addChild(icon);
-
     const lbl = new Text({
-      text: 'Feedback',
+      text: '🎯 Daily Missions',
       style: new TextStyle({
         fontFamily: DESIGN_TOKENS.typography.fontHeading,
-        fontSize: 11.5,
+        fontSize: 13.5,
         fill: DESIGN_TOKENS.colors.navyOutline,
         fontWeight: 'bold',
-      })
+      }),
     });
-    lbl.anchor.set(0, 0.5);
-    lbl.x = 2;
+    lbl.anchor.set(0.5, 0.5);
     lbl.y = h / 2;
     surface.addChild(lbl);
+
+    // Red count badge: something is ready to claim
+    this.missionBadge = new Container();
+    this.missionBadge.x = w / 2 - 6;
+    this.missionBadge.y = 2;
+    this.missionBadge.visible = false;
+    this.missionBadge.addChild(
+      new Graphics()
+        .circle(0, 0, 10)
+        .fill({ color: DESIGN_TOKENS.semantic.danger })
+        .stroke({ color: 0xFFFFFF, width: 1.5 }),
+    );
+    this.missionBadgeText = new Text({
+      text: '0',
+      style: new TextStyle({ fontFamily: DESIGN_TOKENS.typography.fontHeading, fontSize: 11, fill: 0xFFFFFF, fontWeight: 'bold' }),
+    });
+    this.missionBadgeText.anchor.set(0.5, 0.5);
+    this.missionBadge.addChild(this.missionBadgeText);
+    btn.addChild(this.missionBadge);
+
+    // 44px-tall touch area
+    btn.hitArea = new Rectangle(-w / 2, -4, w, h + 12);
 
     btn.on('pointerdown', () => { surface.y = 2; });
     btn.on('pointerup', () => {
       surface.y = 0;
       soundManager.play('ui_click');
-      this.emit('open_feedback');
+      this.emit('open_missions');
     });
     btn.on('pointerupoutside', () => { surface.y = 0; });
 
@@ -723,11 +756,25 @@ export class MainMenu extends EventEmitter {
     icon.anchor.set(0.5, 0.5);
     btn.addChild(icon);
 
-    const dot = new Graphics()
-      .circle(r * 0.72, -r * 0.72, 4.5)
-      .fill({ color: DESIGN_TOKENS.colors.orangeAction })
-      .stroke({ color: 0xFFFFFF, width: 1.5 });
-    btn.addChild(dot);
+    // Account level badge (replaces the old decorative dot)
+    const lvBg = new Graphics()
+      .circle(r * 0.74, r * 0.74, 9)
+      .fill({ color: DESIGN_TOKENS.colors.premiumGold })
+      .stroke({ color: DESIGN_TOKENS.colors.navyOutline, width: DESIGN_TOKENS.borders.thin });
+    btn.addChild(lvBg);
+    this.avatarLvText = new Text({
+      text: '1',
+      style: new TextStyle({
+        fontFamily: DESIGN_TOKENS.typography.fontHeading,
+        fontSize: 10.5,
+        fill: DESIGN_TOKENS.colors.navyOutline,
+        fontWeight: 'bold',
+      }),
+    });
+    this.avatarLvText.anchor.set(0.5, 0.5);
+    this.avatarLvText.x = r * 0.74;
+    this.avatarLvText.y = r * 0.74;
+    btn.addChild(this.avatarLvText);
 
     btn.on('pointerdown', (e) => {
       e.stopPropagation();

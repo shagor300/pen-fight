@@ -10,6 +10,7 @@ import { DESIGN_TOKENS } from '../config/designTokens';
 import { PenSpec } from '../config/pensConfig';
 import { renderPenToCanvas } from '../rendering/RealPenRenderer';
 import { soundManager } from '../audio/SoundAndHaptics';
+import { formatPen } from '../economy/EconomyEngine';
 import EventEmitter from 'eventemitter3';
 
 export interface MatchResultData {
@@ -20,8 +21,26 @@ export interface MatchResultData {
   p1Pen: PenSpec;
   p2Pen: PenSpec;
   streak: number;
-  xpEarned: number;
   isSeriesComplete?: boolean;
+  /** This round ended level (no point scored). */
+  roundDraw?: boolean;
+  /** PEN at stake for the series, shown on non-final rounds. */
+  stakeFee?: number;
+  /** Settled economy numbers, read from the finalized match record. */
+  econ?: MatchResultEcon;
+}
+
+export interface MatchResultEcon {
+  tierLabel: string;
+  entryFee: number;
+  payout: number;
+  netPen: number;
+  bonusPen: number;
+  balanceAfter: number;
+  accountXp: number;
+  penXp: number;
+  levelsGained: number[];
+  forfeited: boolean;
 }
 
 export class MatchResultModal extends EventEmitter {
@@ -183,7 +202,9 @@ export class MatchResultModal extends EventEmitter {
     seriesSubtitle.y = topY + (isCompact ? 10 : 14);
     this.cardContent.addChild(seriesSubtitle);
 
-    const winnerTitle = isComplete
+    const winnerTitle = this.data.roundDraw
+      ? 'Round drawn'
+      : isComplete
       ? (p1Won
         ? (isAi ? 'You win the series!' : 'Player 1 wins!')
         : (isAi ? 'Computer wins series' : 'Player 2 wins!'))
@@ -303,57 +324,77 @@ export class MatchResultModal extends EventEmitter {
 
     this.cardContent.addChild(scoreRow);
 
-    // ── 4. Win Streaks & XP (Dark Card — No Pen Overlap) ─────────────
+    // ── 4. Rewards card (real, settled numbers) ──────────────────────
     const statsY = scoreBoxY + scoreBoxH + (isCompact ? 9 : 12);
     const xpCardW = w - 44;
-    const xpCardH = isCompact ? 60 : 68;
+    const econ = isComplete ? this.data.econ : undefined;
+    const rowH = isCompact ? 16 : 17;
+    const lines: { l: string; v: string; color?: number; bold?: boolean }[] = [];
+    if (econ) {
+      if (econ.entryFee > 0) {
+        lines.push({ l: 'Entry fee', v: `−${formatPen(econ.entryFee)} PEN`, color: DESIGN_TOKENS.semantic.danger });
+        lines.push({
+          l: econ.payout > econ.entryFee ? 'Match payout' : econ.payout === econ.entryFee ? 'Refund' : 'Match payout',
+          v: `+${formatPen(econ.payout)} PEN`,
+          color: econ.payout > 0 ? DESIGN_TOKENS.semantic.success : 0x94A3B8,
+        });
+      } else {
+        lines.push({ l: this.data.mode === 'VS_AI' ? 'Practice' : 'Local duel', v: 'No PEN at stake', color: 0x94A3B8 });
+      }
+      if (econ.bonusPen > 0) lines.push({ l: 'Bonuses', v: `+${formatPen(econ.bonusPen)} PEN`, color: DESIGN_TOKENS.semantic.pen });
+      const net = econ.netPen + econ.bonusPen;
+      if (econ.entryFee > 0 || econ.bonusPen > 0) {
+        lines.push({
+          l: 'Net PEN',
+          v: `${net > 0 ? '+' : net < 0 ? '−' : ''}${formatPen(Math.abs(net))}`,
+          color: net >= 0 ? DESIGN_TOKENS.semantic.success : DESIGN_TOKENS.semantic.danger,
+          bold: true,
+        });
+      }
+      lines.push({ l: 'Balance', v: `${formatPen(econ.balanceAfter)} PEN`, color: 0xF8FAFC, bold: true });
+      lines.push({
+        l: 'XP',
+        v: econ.forfeited ? 'None (forfeit)' : `Account +${econ.accountXp} · Pen +${econ.penXp}`,
+        color: DESIGN_TOKENS.semantic.success,
+      });
+      if (econ.levelsGained.length > 0) {
+        lines.push({ l: 'Level up!', v: `Level ${econ.levelsGained[econ.levelsGained.length - 1]}`, color: DESIGN_TOKENS.semantic.pen, bold: true });
+      }
+    } else {
+      const fee = this.data.stakeFee ?? 0;
+      lines.push({ l: 'Series', v: `First to ${this.data.winsNeeded}` });
+      lines.push({ l: 'At stake', v: fee > 0 ? `${formatPen(fee)} PEN` : 'No PEN (Practice)', color: fee > 0 ? DESIGN_TOKENS.semantic.pen : 0x94A3B8 });
+      lines.push({ l: 'Win streak', v: `${this.data.streak}` });
+    }
+    const xpCardH = lines.length * rowH + (isCompact ? 14 : 18);
 
     const xpCardBg = new Graphics()
       .roundRect(-xpCardW / 2, statsY, xpCardW, xpCardH, DESIGN_TOKENS.radii.md)
       .fill({ color: DESIGN_TOKENS.colors.deepNavy });
     this.cardContent.addChild(xpCardBg);
 
-    const streakText = new Text({
-      text: `🔥 Win streaks · You ${p1Won ? this.data.streak : 0} · Computer ${!p1Won ? this.data.streak : 0}`,
-      style: new TextStyle({
-        fontFamily: DESIGN_TOKENS.typography.fontBody,
-        fontSize: isCompact ? 10 : 11,
-        fill: 0x94A3B8,
-        fontWeight: '700',
-      })
+    lines.forEach((ln, i) => {
+      const ly = statsY + (isCompact ? 7 : 9) + i * rowH;
+      const lt = new Text({
+        text: ln.l,
+        style: new TextStyle({ fontFamily: DESIGN_TOKENS.typography.fontBody, fontSize: isCompact ? 11 : 12, fill: 0x94A3B8, fontWeight: '700' }),
+      });
+      lt.x = -xpCardW / 2 + 14;
+      lt.y = ly;
+      const vt = new Text({
+        text: ln.v,
+        style: new TextStyle({
+          fontFamily: ln.bold ? DESIGN_TOKENS.typography.fontHeading : DESIGN_TOKENS.typography.fontBody,
+          fontSize: isCompact ? 11.5 : 12.5,
+          fill: ln.color ?? 0xF8FAFC,
+          fontWeight: ln.bold ? 'bold' : '800',
+        }),
+      });
+      vt.anchor.set(1, 0);
+      vt.x = xpCardW / 2 - 14;
+      vt.y = ly;
+      this.cardContent.addChild(lt, vt);
     });
-    streakText.anchor.set(0.5, 0);
-    streakText.x = 0;
-    streakText.y = statsY + (isCompact ? 7 : 10);
-    this.cardContent.addChild(streakText);
-
-    const xpText = new Text({
-      text: `${this.data.p1Pen.name}: +${this.data.xpEarned} XP`,
-      style: new TextStyle({
-        fontFamily: DESIGN_TOKENS.typography.fontHeading,
-        fontSize: isCompact ? 13 : 14,
-        fill: DESIGN_TOKENS.colors.victoryGreen,
-        fontWeight: 'bold',
-      })
-    });
-    xpText.anchor.set(0.5, 0);
-    xpText.x = 0;
-    xpText.y = statsY + (isCompact ? 24 : 28);
-    this.cardContent.addChild(xpText);
-
-    const keepText = new Text({
-      text: 'New series keeps the same pens',
-      style: new TextStyle({
-        fontFamily: DESIGN_TOKENS.typography.fontBody,
-        fontSize: 9.5,
-        fill: 0x64748B,
-        fontWeight: '700',
-      })
-    });
-    keepText.anchor.set(0.5, 0);
-    keepText.x = 0;
-    keepText.y = statsY + (isCompact ? 42 : 48);
-    this.cardContent.addChild(keepText);
 
     // ── 5. Action Buttons ────────────────────────────────────────────
     const btnW = w - 44;
@@ -361,7 +402,10 @@ export class MatchResultModal extends EventEmitter {
     const buttonsY = statsY + xpCardH + (isCompact ? 10 : 14);
 
     // Button 1: Next Round or Play Again (Rematch)
-    const primaryLabel = isComplete ? 'Play again' : 'Next round';
+    const rematchFee = this.data.econ?.entryFee ?? 0;
+    const primaryLabel = isComplete
+      ? (rematchFee > 0 ? `Rematch · ${formatPen(rematchFee)} PEN` : 'Play again')
+      : 'Next round';
     const primaryIcon = isComplete ? '🔄' : '▷';
     const primaryEvent = isComplete ? 'rematch' : 'next_round';
 
